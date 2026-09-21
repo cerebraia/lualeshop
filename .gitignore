@@ -39,3 +39,17 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# PDF extraction temp files
+/.tmp-pdf-extract/
+/tmp-pdf-*/
+
+# playwright (added for verification, not needed in repo)
+/node_modules/playwright*
+/playwright-report/
+
+# Claude Code memory (contains personal project notes, never commit)
+.claude/
+
+# Audit artifacts (generated files, not source)
+/artifacts/
