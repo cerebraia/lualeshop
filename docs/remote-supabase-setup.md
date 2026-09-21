@@ -16,8 +16,8 @@
 # .env.local
 NEXT_PUBLIC_DATA_PROVIDER=supabase
 NEXT_PUBLIC_SUPABASE_URL=https://xxxx.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJ...
-SUPABASE_SERVICE_ROLE_KEY=eyJ...  # solo para scripts, nunca al navegador
+NEXT_PUBLIC_SUPABASE_ANON_KEY=TU_ANON_KEY_AQUI
+SUPABASE_SERVICE_ROLE_KEY=TU_SERVICE_ROLE_KEY_AQUI  # solo para scripts, nunca al navegador
 ```
 
 ## 3. Instalar Supabase CLI
