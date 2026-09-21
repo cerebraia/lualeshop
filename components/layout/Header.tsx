@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import dynamic from 'next/dynamic';
 import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
@@ -8,6 +9,13 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Menu, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon';
+import { SearchButton, useSearchShortcut } from '@/components/ui/SearchModal';
+
+// Lazy-load the modal itself to keep the header bundle small
+const SearchModal = dynamic(
+  () => import('@/components/ui/SearchModal').then((m) => ({ default: m.SearchModal })),
+  { ssr: false }
+);
 
 const NAV = [
   { href: '/', label: 'Inicio' },
@@ -21,8 +29,14 @@ const NAV = [
 
 export function Header() {
   const [open, setOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const pathname = usePathname();
+
+  const openSearch  = useCallback(() => setSearchOpen(true),  []);
+  const closeSearch = useCallback(() => setSearchOpen(false), []);
+
+  useSearchShortcut(openSearch);
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 8);
@@ -102,7 +116,11 @@ export function Header() {
         </nav>
 
         {/* Right side */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
+          {/* Search button — desktop: after nav, mobile: always visible */}
+          <SearchButton onClick={openSearch} />
+
+          {/* WhatsApp CTA */}
           <a
             href="https://wa.me/584220162748"
             target="_blank"
@@ -112,6 +130,8 @@ export function Header() {
             <WhatsAppIcon size={17} />
             <span className="hidden md:inline">WhatsApp</span>
           </a>
+
+          {/* Mobile hamburger */}
           <button
             className="lg:hidden p-2 rounded-xl hover:bg-cream transition-colors text-brown"
             onClick={() => setOpen((v) => !v)}
@@ -123,6 +143,9 @@ export function Header() {
           </button>
         </div>
       </div>
+
+      {/* Search modal — lazy loaded */}
+      <SearchModal open={searchOpen} onClose={closeSearch} />
 
       {/* Mobile menu */}
       <AnimatePresence>

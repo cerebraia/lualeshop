@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { mockProducts } from '@/lib/mock/products';
 import { mockCategories } from '@/lib/mock/categories';
@@ -163,16 +163,31 @@ export default function CatalogoPage() {
   const [page, setPage] = useState(1);
   const PER_PAGE = 12;
 
+  // Apply ?q= param from the search modal (runs only on mount)
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const q = params.get('q');
+    if (q) {
+      setSearch(q.slice(0, 100));
+      setPage(1);
+    }
+  }, []);
+
   const filtered = useMemo<Product[]>(() => {
     let list = mockProducts.filter((p) => p.visible);
 
     if (search.trim()) {
-      const q = search.toLowerCase();
+      const normalize = (s: string) =>
+        s.normalize('NFD').replace(/\p{Diacritic}/gu, '').toLowerCase();
+      const q = normalize(search.trim());
+      const catNames = new Map(mockCategories.map((c) => [c.id, normalize(c.name)]));
       list = list.filter(
         (p) =>
-          p.name.toLowerCase().includes(q) ||
-          p.description.toLowerCase().includes(q) ||
-          p.garmentType.toLowerCase().includes(q)
+          normalize(p.name).includes(q) ||
+          normalize(p.description).includes(q) ||
+          normalize(p.garmentType).includes(q) ||
+          p.categoryIds.some((id) => (catNames.get(id) ?? '').includes(q)) ||
+          p.variants.some((v) => normalize(v.size).includes(q))
       );
     }
     if (categoryId) list = list.filter((p) => p.categoryIds.includes(categoryId));
