@@ -64,6 +64,7 @@ export function mapProduct(row: DbRow): Product {
     images,
     status:               mapAvailability(row.manual_availability),
     featured:             row.featured,
+    featuredOrder:        row.featured_order ?? null,
     isNew:                row.is_new,
     visible:              row.status === 'active',
     garmentType:          row.garment_type ?? '',

@@ -31,9 +31,10 @@ export const metadata: Metadata = {
 
 const visibleProducts = mockProducts.filter((p) => p.visible);
 
-// Up to 16 featured products for the carousel
+// Up to 16 featured products for the grid carousel, sorted by featuredOrder
 const featuredProducts = visibleProducts
   .filter((p) => p.featured)
+  .sort((a, b) => (a.featuredOrder ?? 999) - (b.featuredOrder ?? 999))
   .slice(0, 16);
 
 // Up to 4 new arrivals (isNew flag), deterministic order by catalogNumber

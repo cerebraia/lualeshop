@@ -44,6 +44,7 @@ export interface Product {
   images: string[];
   status: InventoryStatus;
   featured: boolean;
+  featuredOrder: number | null;
   isNew: boolean;
   visible: boolean;
   garmentType: string;

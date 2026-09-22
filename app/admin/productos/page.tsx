@@ -27,6 +27,8 @@ const GARMENT_TYPES = [
   'Romper', 'Set', 'Sudadera', 'Vestido', 'Otro',
 ];
 
+const MAX_FEATURED = 16;
+
 interface ProductFormData {
   name: string;
   sku: string;
@@ -36,6 +38,7 @@ interface ProductFormData {
   categoryIds: string[];
   status: InventoryStatus;
   featured: boolean;
+  featuredOrder: string;
   isNew: boolean;
   visible: boolean;
   garmentType: string;
@@ -52,6 +55,7 @@ const emptyForm = (): ProductFormData => ({
   categoryIds: [],
   status: 'available',
   featured: false,
+  featuredOrder: '',
   isNew: false,
   visible: true,
   garmentType: 'Set',
@@ -66,6 +70,7 @@ export default function ProductosPage() {
   const [filterCategory, setFilterCategory] = useState('');
   const [filterNoImage, setFilterNoImage] = useState(false);
   const [filterInvPending, setFilterInvPending] = useState(false);
+  const [filterFeatured, setFilterFeatured] = useState(false);
   const [modal, setModal] = useState<'create' | 'edit' | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormData>(emptyForm());
@@ -81,6 +86,8 @@ export default function ProductosPage() {
 
   useEffect(load, []);
 
+  const featuredCount = products.filter((p) => p.featured).length;
+
   const filtered = products.filter((p) => {
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
@@ -88,7 +95,8 @@ export default function ProductosPage() {
     const matchesCategory = !filterCategory || p.categoryIds.includes(filterCategory);
     const matchesNoImage = !filterNoImage || p.images.length === 0;
     const matchesInvPending = !filterInvPending || !p.inventoryConfigured;
-    return matchesSearch && matchesCategory && matchesNoImage && matchesInvPending;
+    const matchesFeatured = !filterFeatured || p.featured;
+    return matchesSearch && matchesCategory && matchesNoImage && matchesInvPending && matchesFeatured;
   });
 
   function openCreate() {
@@ -108,6 +116,7 @@ export default function ProductosPage() {
       categoryIds: product.categoryIds,
       status: product.status,
       featured: product.featured,
+      featuredOrder: product.featuredOrder != null ? String(product.featuredOrder) : '',
       isNew: product.isNew,
       visible: product.visible,
       garmentType: product.garmentType,
@@ -156,6 +165,10 @@ export default function ProductosPage() {
     const now = new Date().toISOString();
 
     setTimeout(() => {
+      const featuredOrderVal = form.featured && form.featuredOrder.trim()
+        ? Number(form.featuredOrder)
+        : null;
+
       if (modal === 'create') {
         const prod: Product = {
           id: generateId('prod'),
@@ -170,6 +183,7 @@ export default function ProductosPage() {
           images: [],
           status: form.status,
           featured: form.featured,
+          featuredOrder: featuredOrderVal,
           isNew: form.isNew,
           visible: form.visible,
           garmentType: form.garmentType,
@@ -193,6 +207,7 @@ export default function ProductosPage() {
             variants: form.variants,
             status: form.status,
             featured: form.featured,
+            featuredOrder: featuredOrderVal,
             isNew: form.isNew,
             visible: form.visible,
             garmentType: form.garmentType,
@@ -303,6 +318,17 @@ export default function ProductosPage() {
           <Settings size={13} className="text-purple-500" />
           Inventario pendiente
         </label>
+
+        <label className="flex items-center gap-2 cursor-pointer bg-white border border-rose/30 rounded-2xl px-3 py-2.5 text-sm text-brown hover:border-rose transition-colors">
+          <input
+            type="checkbox"
+            checked={filterFeatured}
+            onChange={(e) => setFilterFeatured(e.target.checked)}
+            className="accent-rose"
+          />
+          <span className="text-yellow-500 text-xs">★</span>
+          Destacados ({featuredCount}/{MAX_FEATURED})
+        </label>
       </div>
 
       {/* Table */}
@@ -344,6 +370,11 @@ export default function ProductosPage() {
                           <p className="font-semibold text-brown text-sm">{p.name}</p>
                           <p className="text-xs text-brown-light">{p.garmentType}</p>
                         </div>
+                        {p.featured && (
+                          <span title={`Destacado #${p.featuredOrder ?? '?'}`} className="text-yellow-500 text-xs font-bold">
+                            ★{p.featuredOrder != null ? p.featuredOrder : ''}
+                          </span>
+                        )}
                         {p.images.length === 0 && (
                           <span title="Sin imagen" className="text-amber-400">
                             <ImageIcon size={12} />
@@ -473,20 +504,78 @@ export default function ProductosPage() {
           </div>
 
           {/* Flags */}
-          <div className="flex flex-wrap gap-4">
-            {(['featured', 'isNew', 'visible'] as const).map((flag) => (
-              <label key={flag} className="flex items-center gap-1.5 cursor-pointer">
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-4">
+              {(['isNew', 'visible'] as const).map((flag) => (
+                <label key={flag} className="flex items-center gap-1.5 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={form[flag]}
+                    onChange={(e) => setForm((f) => ({ ...f, [flag]: e.target.checked }))}
+                    className="accent-rose"
+                  />
+                  <span className="text-sm text-brown">
+                    {flag === 'isNew' ? 'Novedad' : 'Visible en tienda'}
+                  </span>
+                </label>
+              ))}
+            </div>
+
+            {/* Featured — with limit guard and order field */}
+            <div className="bg-yellow-50 rounded-2xl p-3 space-y-2">
+              <label className="flex items-center gap-1.5 cursor-pointer">
                 <input
                   type="checkbox"
-                  checked={form[flag]}
-                  onChange={(e) => setForm((f) => ({ ...f, [flag]: e.target.checked }))}
+                  checked={form.featured}
+                  onChange={(e) => {
+                    const next = e.target.checked;
+                    // Block if at limit and trying to add a new product
+                    const isNewProduct = modal === 'create' || !products.find((p) => p.id === editingId)?.featured;
+                    if (next && isNewProduct && featuredCount >= MAX_FEATURED) return;
+                    setForm((f) => ({ ...f, featured: next, featuredOrder: next ? f.featuredOrder : '' }));
+                  }}
                   className="accent-rose"
+                  disabled={
+                    !form.featured &&
+                    (modal === 'create' || !products.find((p) => p.id === editingId)?.featured) &&
+                    featuredCount >= MAX_FEATURED
+                  }
                 />
-                <span className="text-sm text-brown">
-                  {flag === 'featured' ? 'Destacado' : flag === 'isNew' ? 'Novedad' : 'Visible en tienda'}
+                <span className="text-sm font-semibold text-brown">
+                  ★ Producto destacado
+                </span>
+                <span className="text-xs text-brown-light ml-auto">
+                  {featuredCount}/{MAX_FEATURED} destacados
                 </span>
               </label>
-            ))}
+
+              {featuredCount >= MAX_FEATURED && !form.featured && (
+                <p className="text-xs text-amber-700 ml-5">
+                  Puedes seleccionar un máximo de {MAX_FEATURED} productos destacados.
+                </p>
+              )}
+
+              {form.featured && (
+                <div className="ml-5">
+                  <label className="text-xs font-semibold text-brown-light block mb-1">
+                    Orden de aparición (1 = primero)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={MAX_FEATURED}
+                    step="1"
+                    value={form.featuredOrder}
+                    onChange={(e) => setForm((f) => ({ ...f, featuredOrder: e.target.value }))}
+                    placeholder="1–16"
+                    className="w-24 px-3 py-1.5 border border-rose/30 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
+                  />
+                  <p className="text-xs text-brown-light mt-1">
+                    Define la posición en el carrusel de la home. Deja vacío para aparecer al final.
+                  </p>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Inventory configured toggle */}
