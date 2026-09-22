@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Nunito, Pacifico } from 'next/font/google';
+import { Nunito } from 'next/font/google';
 import './globals.css';
 
 const SITE = 'https://lualekids.shop';
@@ -11,12 +11,6 @@ const nunito = Nunito({
   display: 'swap',
 });
 
-const pacifico = Pacifico({
-  variable: '--font-pacifico',
-  subsets: ['latin'],
-  weight: ['400'],
-  display: 'swap',
-});
 
 export const viewport: Viewport = {
   themeColor: '#624B3F',
@@ -81,7 +75,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="es" className={`${nunito.variable} ${pacifico.variable} h-full`}>
+    <html lang="es" className={`${nunito.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased">{children}</body>
     </html>
   );

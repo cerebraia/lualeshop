@@ -27,7 +27,7 @@ export function AnimatedLualeWordmark({ className, size = 'lg' }: AnimatedLualeW
 
   return (
     <span
-      className={cn('font-script inline-block leading-none', SIZES[size], className)}
+      className={cn('font-sans font-extrabold inline-block leading-none', SIZES[size], className)}
       style={{
         background: GRADIENT,
         backgroundSize: '250% 100%',
