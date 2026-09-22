@@ -1,7 +1,8 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { ExternalLink, MapPin, Truck } from 'lucide-react';
+import { MapPin, Truck } from 'lucide-react';
 import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon';
+import { InstagramIcon } from '@/components/ui/InstagramIcon';
 
 export function Footer() {
   return (
@@ -97,7 +98,7 @@ export function Footer() {
                 rel="noopener noreferrer"
                 className="flex items-center gap-2.5 text-sm text-white/70 hover:text-rose transition-colors"
               >
-                <ExternalLink size={15} />
+                <InstagramIcon size={16} />
                 @lualekids.shop
               </a>
             </div>
