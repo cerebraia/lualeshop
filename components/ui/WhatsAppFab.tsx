@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { cn } from '@/lib/utils';
 import { WhatsAppIcon } from './WhatsAppIcon';
 
 const WA_HREF =
@@ -9,10 +8,12 @@ const WA_HREF =
 
 export function WhatsAppFab() {
   const [visible, setVisible] = useState(false);
+  const [reduced, setReduced] = useState(false);
 
-  // Fade in after a short delay so it doesn't flash on load
   useEffect(() => {
-    const t = setTimeout(() => setVisible(true), 800);
+    const mq = window.matchMedia('(prefers-reduced-motion: reduce)');
+    setReduced(mq.matches);
+    const t = setTimeout(() => setVisible(true), 600);
     return () => clearTimeout(t);
   }, []);
 
@@ -22,19 +23,38 @@ export function WhatsAppFab() {
       target="_blank"
       rel="noopener noreferrer"
       aria-label="Escríbenos por WhatsApp"
-      className={cn(
-        'fixed bottom-6 right-5 z-40',
-        'flex items-center justify-center',
-        'w-14 h-14 rounded-full',
-        'bg-[#25D366] hover:bg-[#1ebe5d] active:bg-[#17a84e]',
-        'shadow-lg shadow-[#25D366]/40 hover:shadow-xl hover:shadow-[#25D366]/50',
-        'transition-all duration-200 hover:scale-110 active:scale-[0.97]',
-        'focus:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2',
-        visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-4'
-      )}
-      style={{ transition: 'opacity 0.35s ease, transform 0.35s ease, background-color 0.15s, box-shadow 0.15s, scale 0.15s' }}
+      /*
+       * z-20: above scrolling page content, but BELOW
+       *   - header (z-40)
+       *   - mobile menu overlay (z-30) and panel (z-40)
+       *   - modals and search (z-50)
+       * This prevents the FAB from covering menus or dialogs.
+       */
+      className="fixed z-20 flex items-center justify-center w-14 h-14 rounded-full bg-[#25D366] text-white shadow-lg shadow-[#25D366]/35 focus:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-[#25D366]"
+      style={{
+        // safe-area insets for notched/dynamic-island devices
+        right:   'max(20px, env(safe-area-inset-right, 20px))',
+        bottom:  'max(20px, env(safe-area-inset-bottom, 20px))',
+        opacity:    visible ? 1 : 0,
+        transform:  visible ? 'translateY(0) scale(1)' : 'translateY(12px) scale(0.92)',
+        transition: reduced
+          ? 'none'
+          : 'opacity 0.35s ease, transform 0.35s ease',
+      }}
+      onMouseEnter={(e) => {
+        if (!reduced) (e.currentTarget as HTMLElement).style.transform = 'translateY(0) scale(1.1)';
+      }}
+      onMouseLeave={(e) => {
+        if (!reduced) (e.currentTarget as HTMLElement).style.transform = 'translateY(0) scale(1)';
+      }}
+      onMouseDown={(e) => {
+        if (!reduced) (e.currentTarget as HTMLElement).style.transform = 'translateY(0) scale(0.96)';
+      }}
+      onMouseUp={(e) => {
+        if (!reduced) (e.currentTarget as HTMLElement).style.transform = 'translateY(0) scale(1.1)';
+      }}
     >
-      <WhatsAppIcon size={28} className="text-white" />
+      <WhatsAppIcon size={27} />
     </a>
   );
 }

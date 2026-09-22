@@ -14,6 +14,9 @@ import { makeFadeUp } from '@/components/ui/motion-variants';
 // md (768–1023): 2 rows × 3 cols = 6
 // sm (480–767): 2 rows × 2 cols = 4
 // xs (<480): 2 rows × 1 col = 2
+//
+// Tailwind safelist (values used dynamically — scanner must see these literals):
+// grid-cols-1 grid-cols-2 grid-cols-3 grid-cols-4
 
 interface SlideGroupConfig {
   cols: number;
@@ -219,8 +222,8 @@ export function FeaturedProducts({ products }: { products: Product[] }) {
                   role="group"
                   aria-roledescription="diapositiva"
                   aria-label={`Diapositiva ${pi + 1} de ${total}`}
-                  aria-hidden={pi !== page}
-                  inert={pi !== page ? '' as unknown as boolean : undefined}
+                  aria-hidden={pi !== page || undefined}
+                  inert={pi !== page || undefined}
                 >
                   <div className={`grid ${colClass[cols] ?? 'grid-cols-2'} gap-4`}>
                     {group.map((product, i) => (
