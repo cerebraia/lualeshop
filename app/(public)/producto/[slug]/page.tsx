@@ -32,6 +32,8 @@ function generateIntentId(): string {
 
 function buildMessage(
   productName: string,
+  sku: string,
+  categoryName: string | undefined,
   purchaseOptionLabel: string | undefined,
   variant: ProductVariant,
   quantity: number,
@@ -42,6 +44,8 @@ function buildMessage(
   const lines = [
     `Hola, estoy interesado/a en *${productName}* de Luale Kids Shop.`,
     '',
+    `SKU: ${sku}`,
+    ...(categoryName ? [`Categoría: ${categoryName}`] : []),
     `Opción: ${purchaseOptionLabel ?? 'Unidad'}`,
     `Talla: ${variant.size}`,
     `Cantidad: ${quantity}`,
@@ -116,6 +120,8 @@ export default function ProductoPage() {
 
     const message = buildMessage(
       product.name,
+      product.sku,
+      categories[0]?.name,
       selectedOption?.label,
       selectedVariant,
       quantity,
@@ -123,18 +129,22 @@ export default function ProductoPage() {
       url
     );
 
-    // Log intent
-    intentRepository.create({
-      id: generateIntentId(),
-      productId: product.id,
-      productName: product.name,
-      purchaseOptionLabel: selectedOption?.label,
-      variantSize: selectedVariant.size,
-      quantity,
-      price: displayPrice,
-      origin: 'product_page',
-      date: new Date().toISOString(),
-    });
+    // Log intent — never block the WhatsApp redirect if this fails
+    try {
+      intentRepository.create({
+        id: generateIntentId(),
+        productId: product.id,
+        productName: product.name,
+        purchaseOptionLabel: selectedOption?.label,
+        variantSize: selectedVariant.size,
+        quantity,
+        price: displayPrice,
+        origin: 'product_page',
+        date: new Date().toISOString(),
+      });
+    } catch {
+      // Intentional no-op: intent logging is best-effort
+    }
 
     const link = buildWhatsAppLink(WHATSAPP_NUMBER, message);
     window.open(link, '_blank', 'noopener,noreferrer');
@@ -365,16 +375,17 @@ export default function ProductoPage() {
 
           {/* Quantity */}
           <div>
-            <p className="text-sm font-bold text-brown mb-2">Cantidad</p>
-            <div className="flex items-center gap-3">
+            <p className="text-sm font-bold text-brown mb-2" id="qty-label">Cantidad</p>
+            <div className="flex items-center gap-3" role="group" aria-labelledby="qty-label">
               <button
                 onClick={() => handleQtyChange(-1)}
                 disabled={quantity <= 1}
+                aria-label="Reducir cantidad"
                 className="w-9 h-9 rounded-2xl border-2 border-rose/30 flex items-center justify-center text-brown hover:border-rose hover:bg-rose hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Minus size={15} />
               </button>
-              <span className="text-xl font-bold text-brown w-8 text-center">{quantity}</span>
+              <span className="text-xl font-bold text-brown w-8 text-center" aria-live="polite" aria-label={`Cantidad: ${quantity}`}>{quantity}</span>
               <button
                 onClick={() => handleQtyChange(1)}
                 disabled={
@@ -382,6 +393,7 @@ export default function ProductoPage() {
                     ? !selectedVariant || quantity >= selectedVariant.stock
                     : false
                 }
+                aria-label="Aumentar cantidad"
                 className="w-9 h-9 rounded-2xl border-2 border-rose/30 flex items-center justify-center text-brown hover:border-rose hover:bg-rose hover:text-white transition-all disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 <Plus size={15} />
@@ -400,6 +412,7 @@ export default function ProductoPage() {
           {/* CTA */}
           <button
             onClick={handleWhatsApp}
+            aria-label={`Pedir ${product.name} por WhatsApp`}
             className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-6 py-4 rounded-2xl transition-all shadow-sm text-base active:scale-[0.98]"
           >
             <WhatsAppIcon size={22} />

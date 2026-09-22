@@ -5,7 +5,7 @@ import { WhatsAppIcon } from '@/components/ui/WhatsAppIcon';
 
 export function Footer() {
   return (
-    <footer className="bg-brown text-white mt-24">
+    <footer className="bg-brown text-white mt-0">
       <div className="max-w-7xl mx-auto px-4 pt-14 pb-8">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-10">
           {/* Brand */}

@@ -3,6 +3,7 @@ import { InfoBar } from '@/components/layout/InfoBar';
 import { Header } from '@/components/layout/Header';
 import { Footer } from '@/components/layout/Footer';
 import { MigrationRunner } from '@/components/MigrationRunner';
+import { WhatsAppFab } from '@/components/ui/WhatsAppFab';
 
 const orgJsonLd = {
   '@context': 'https://schema.org',
@@ -19,8 +20,6 @@ const orgJsonLd = {
   },
   sameAs: ['https://www.instagram.com/lualekids.shop/'],
   priceRange: '$',
-  servesCuisine: undefined,
-  hasMap: undefined,
 };
 
 export default function PublicLayout({ children }: { children: ReactNode }) {
@@ -35,6 +34,7 @@ export default function PublicLayout({ children }: { children: ReactNode }) {
       <Header />
       <main className="flex-1">{children}</main>
       <Footer />
+      <WhatsAppFab />
     </>
   );
 }
