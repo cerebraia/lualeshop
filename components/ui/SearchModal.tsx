@@ -377,7 +377,7 @@ export function SearchModal({ open, onClose }: Props) {
                     {/* Luale gradient wordmark */}
                     <p className="text-xs font-bold mb-0.5"
                       style={{
-                        background: 'linear-gradient(90deg, #8DB9D5, #E8B5B0, #F2C66D)',
+                        background: 'linear-gradient(90deg, #89B4C8, #C98B96, #D4A0A8)',
                         WebkitBackgroundClip: 'text',
                         WebkitTextFillColor: 'transparent',
                         backgroundClip: 'text',

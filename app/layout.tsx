@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Nunito, Dancing_Script } from 'next/font/google';
+import { Nunito, Pacifico } from 'next/font/google';
 import './globals.css';
 
 const SITE = 'https://lualekids.shop';
@@ -11,10 +11,10 @@ const nunito = Nunito({
   display: 'swap',
 });
 
-const dancingScript = Dancing_Script({
-  variable: '--font-dancing-script',
+const pacifico = Pacifico({
+  variable: '--font-pacifico',
   subsets: ['latin'],
-  weight: ['700'],
+  weight: ['400'],
   display: 'swap',
 });
 
@@ -81,7 +81,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="es" className={`${nunito.variable} ${dancingScript.variable} h-full`}>
+    <html lang="es" className={`${nunito.variable} ${pacifico.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased">{children}</body>
     </html>
   );
