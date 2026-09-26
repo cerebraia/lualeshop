@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Search } from 'lucide-react';
-import { customerRepository } from '@/lib/repositories/customerRepository';
-import { orderRepository } from '@/lib/repositories/orderRepository';
+import { customerRepo, orderRepo } from '@/lib/repos';
 import type { Customer, Order } from '@/lib/types';
 import { generateId, formatDate, formatPrice } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -18,6 +17,7 @@ export default function ClientesPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -25,12 +25,20 @@ export default function ClientesPage() {
   const [address, setAddress] = useState('');
   const [notes, setNotes] = useState('');
 
-  function load() {
-    setCustomers(customerRepository.findAll());
-    setOrders(orderRepository.findAll());
+  async function load() {
+    try {
+      const [custs, ords] = await Promise.all([
+        customerRepo.findAll(),
+        orderRepo.findAll(),
+      ]);
+      setCustomers(custs);
+      setOrders(ords);
+    } catch {
+      setError('Error al cargar datos.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const filtered = customers.filter(
     (c) =>
@@ -67,10 +75,10 @@ export default function ClientesPage() {
     setModal('detail');
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!name.trim()) return;
     setSaving(true);
-    setTimeout(() => {
+    try {
       if (modal === 'create') {
         const customer: Customer = {
           id: generateId('cust'),
@@ -82,11 +90,11 @@ export default function ClientesPage() {
           orderIds: [],
           createdAt: new Date().toISOString(),
         };
-        customerRepository.create(customer);
+        await customerRepo.create(customer);
       } else if (editingId) {
-        const existing = customerRepository.findById(editingId);
+        const existing = await customerRepo.findById(editingId);
         if (existing) {
-          customerRepository.update({
+          await customerRepo.update({
             ...existing,
             name: name.trim(),
             phone: phone.trim(),
@@ -96,26 +104,38 @@ export default function ClientesPage() {
           });
         }
       }
-      load();
+      await load();
       setModal(null);
+    } catch {
+      setError('Error al guardar.');
+    } finally {
       setSaving(false);
-    }, 300);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteId) return;
-    customerRepository.delete(deleteId);
-    setDeleteId(null);
-    load();
+    try {
+      await customerRepo.delete(deleteId);
+      setDeleteId(null);
+      await load();
+    } catch {
+      setError('Error al eliminar cliente.');
+    }
   }
 
-  const detailCustomer = editingId ? customerRepository.findById(editingId) : null;
+  const detailCustomer = editingId ? customers.find((c) => c.id === editingId) ?? null : null;
   const customerOrders = detailCustomer
     ? orders.filter((o) => o.customerId === detailCustomer.id)
     : [];
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Clientes</h1>

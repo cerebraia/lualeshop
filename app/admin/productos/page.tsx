@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, RotateCcw, ImageIcon, Settings } from 'lucide-react';
+import { productRepo, categoryRepo } from '@/lib/repos';
 import { productRepository } from '@/lib/repositories/productRepository';
-import { categoryRepository } from '@/lib/repositories/categoryRepository';
 import type { Product, Category, ProductVariant, InventoryStatus } from '@/lib/types';
 import { formatPrice, generateId, slugify } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -78,13 +78,22 @@ export default function ProductosPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [showRestore, setShowRestore] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function load() {
-    setProducts(productRepository.findAll());
-    setCategories(categoryRepository.findActive());
+  async function load() {
+    try {
+      const [prods, cats] = await Promise.all([
+        productRepo.findAll(),
+        categoryRepo.findActive(),
+      ]);
+      setProducts(prods);
+      setCategories(cats);
+    } catch {
+      setError('Error al cargar datos.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const featuredCount = products.filter((p) => p.featured).length;
 
@@ -128,7 +137,7 @@ export default function ProductosPage() {
     setModal('edit');
   }
 
-  function duplicate(product: Product) {
+  async function duplicate(product: Product) {
     const now = new Date().toISOString();
     const newProd: Product = {
       ...product,
@@ -139,13 +148,21 @@ export default function ProductosPage() {
       createdAt: now,
       updatedAt: now,
     };
-    productRepository.create(newProd);
-    load();
+    try {
+      await productRepo.create(newProd);
+      await load();
+    } catch {
+      setError('Error al duplicar producto.');
+    }
   }
 
-  function toggleVisible(product: Product) {
-    productRepository.update({ ...product, visible: !product.visible });
-    load();
+  async function toggleVisible(product: Product) {
+    try {
+      await productRepo.update({ ...product, visible: !product.visible });
+      await load();
+    } catch {
+      setError('Error al actualizar producto.');
+    }
   }
 
   function validate(): boolean {
@@ -159,12 +176,12 @@ export default function ProductosPage() {
     return Object.keys(errs).length === 0;
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!validate()) return;
     setSaving(true);
     const now = new Date().toISOString();
 
-    setTimeout(() => {
+    try {
       const featuredOrderVal = form.featured && form.featuredOrder.trim()
         ? Number(form.featuredOrder)
         : null;
@@ -192,11 +209,11 @@ export default function ProductosPage() {
           createdAt: now,
           updatedAt: now,
         };
-        productRepository.create(prod);
+        await productRepo.create(prod);
       } else if (modal === 'edit' && editingId) {
-        const existing = productRepository.findById(editingId);
+        const existing = await productRepo.findById(editingId);
         if (existing) {
-          productRepository.update({
+          await productRepo.update({
             ...existing,
             name: form.name.trim(),
             sku: form.sku.trim(),
@@ -216,20 +233,28 @@ export default function ProductosPage() {
           });
         }
       }
-      load();
+      await load();
       setModal(null);
+    } catch {
+      setError('Error al guardar.');
+    } finally {
       setSaving(false);
-    }, 300);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteId) return;
-    productRepository.delete(deleteId);
-    setDeleteId(null);
-    load();
+    try {
+      await productRepo.delete(deleteId);
+      setDeleteId(null);
+      await load();
+    } catch {
+      setError('Error al eliminar producto.');
+    }
   }
 
   function handleRestore() {
+    // reset() is a mock-only operation — use the underlying mock repo directly
     productRepository.reset();
     setShowRestore(false);
     load();
@@ -257,6 +282,11 @@ export default function ProductosPage() {
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Productos</h1>

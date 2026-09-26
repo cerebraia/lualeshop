@@ -2,9 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Search } from 'lucide-react';
-import { orderRepository } from '@/lib/repositories/orderRepository';
-import { customerRepository } from '@/lib/repositories/customerRepository';
-import { productRepository } from '@/lib/repositories/productRepository';
+import { orderRepo, customerRepo, productRepo } from '@/lib/repos';
 import type { Order, Customer, Product, OrderStatus, PaymentStatus, PaymentMethod, OrderItem } from '@/lib/types';
 import { formatPrice, formatDate, generateId } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -72,6 +70,7 @@ export default function PedidosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [customerId, setCustomerId] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -82,13 +81,22 @@ export default function PedidosPage() {
   const [orderDate, setOrderDate] = useState(new Date().toISOString().split('T')[0]);
   const [items, setItems] = useState<(OrderItem & { tempId: string })[]>([]);
 
-  function load() {
-    setOrders(orderRepository.findAll());
-    setCustomers(customerRepository.findAll());
-    setProducts(productRepository.findVisible());
+  async function load() {
+    try {
+      const [ords, custs, prods] = await Promise.all([
+        orderRepo.findAll(),
+        customerRepo.findAll(),
+        productRepo.findVisible(),
+      ]);
+      setOrders(ords);
+      setCustomers(custs);
+      setProducts(prods);
+    } catch {
+      setError('Error al cargar datos.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const filtered = orders.filter(
     (o) =>
@@ -156,12 +164,12 @@ export default function PedidosPage() {
 
   const orderTotal = items.reduce((sum, i) => sum + i.totalPrice, 0);
 
-  function handleSave() {
+  async function handleSave() {
     if (!customerName.trim()) return;
     setSaving(true);
     const now = new Date().toISOString();
 
-    setTimeout(() => {
+    try {
       if (modal === 'create') {
         const order: Order = {
           id: generateId('ord'),
@@ -176,11 +184,11 @@ export default function PedidosPage() {
           date: orderDate,
           createdAt: now,
         };
-        orderRepository.create(order);
+        await orderRepo.create(order);
       } else if (editingId) {
-        const existing = orderRepository.findById(editingId);
+        const existing = await orderRepo.findById(editingId);
         if (existing) {
-          orderRepository.update({
+          await orderRepo.update({
             ...existing,
             customerId,
             customerName: customerName.trim(),
@@ -194,21 +202,33 @@ export default function PedidosPage() {
           });
         }
       }
-      load();
+      await load();
       setModal(null);
+    } catch {
+      setError('Error al guardar.');
+    } finally {
       setSaving(false);
-    }, 300);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteId) return;
-    orderRepository.delete(deleteId);
-    setDeleteId(null);
-    load();
+    try {
+      await orderRepo.delete(deleteId);
+      setDeleteId(null);
+      await load();
+    } catch {
+      setError('Error al eliminar pedido.');
+    }
   }
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Pedidos</h1>

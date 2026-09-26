@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, GripVertical } from 'lucide-react';
-import { categoryRepository } from '@/lib/repositories/categoryRepository';
+import { categoryRepo } from '@/lib/repos';
 import type { Category } from '@/lib/types';
 import { generateId, slugify } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -24,12 +24,17 @@ export default function CategoriasPage() {
   const [errors, setErrors] = useState<{ name?: string }>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function load() {
-    setCategories(categoryRepository.findAll());
+  async function load() {
+    try {
+      setCategories(await categoryRepo.findAll());
+    } catch {
+      setError('Error al cargar datos.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   function openCreate() {
     setForm({ name: '', description: '', active: true });
@@ -52,12 +57,12 @@ export default function CategoriasPage() {
     return Object.keys(errs).length === 0;
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!validate()) return;
     setSaving(true);
-    setTimeout(() => {
+    try {
       if (modal === 'create') {
-        const allCats = categoryRepository.findAll();
+        const allCats = await categoryRepo.findAll();
         const cat: Category = {
           id: generateId('cat'),
           name: form.name.trim(),
@@ -67,11 +72,11 @@ export default function CategoriasPage() {
           active: form.active,
           createdAt: new Date().toISOString(),
         };
-        categoryRepository.create(cat);
+        await categoryRepo.create(cat);
       } else if (editingId) {
-        const existing = categoryRepository.findById(editingId);
+        const existing = await categoryRepo.findById(editingId);
         if (existing) {
-          categoryRepository.update({
+          await categoryRepo.update({
             ...existing,
             name: form.name.trim(),
             description: form.description.trim() || undefined,
@@ -79,26 +84,42 @@ export default function CategoriasPage() {
           });
         }
       }
-      load();
+      await load();
       setModal(null);
+    } catch {
+      setError('Error al guardar.');
+    } finally {
       setSaving(false);
-    }, 300);
+    }
   }
 
-  function toggleActive(cat: Category) {
-    categoryRepository.update({ ...cat, active: !cat.active });
-    load();
+  async function toggleActive(cat: Category) {
+    try {
+      await categoryRepo.update({ ...cat, active: !cat.active });
+      await load();
+    } catch {
+      setError('Error al actualizar categoría.');
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteId) return;
-    categoryRepository.delete(deleteId);
-    setDeleteId(null);
-    load();
+    try {
+      await categoryRepo.delete(deleteId);
+      setDeleteId(null);
+      await load();
+    } catch {
+      setError('Error al eliminar categoría.');
+    }
   }
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6 gap-4">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Categorías</h1>

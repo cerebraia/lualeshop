@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { inventoryRepository } from '@/lib/repositories/inventoryRepository';
-import { productRepository } from '@/lib/repositories/productRepository';
+import { inventoryRepo, productRepo } from '@/lib/repos';
 import type { MerchandiseEntry, MerchandiseEntryItem, Product } from '@/lib/types';
 import { formatPrice, formatDate, generateId } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -15,6 +14,7 @@ export default function MercanciaPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [modal, setModal] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [reference, setReference] = useState('');
@@ -23,12 +23,20 @@ export default function MercanciaPage() {
   const [notes, setNotes] = useState('');
   const [items, setItems] = useState<(MerchandiseEntryItem & { tempId: string })[]>([]);
 
-  function load() {
-    setEntries(inventoryRepository.findAllEntries());
-    setProducts(productRepository.findAll());
+  async function load() {
+    try {
+      const [ents, prods] = await Promise.all([
+        inventoryRepo.findAllEntries(),
+        productRepo.findAll(),
+      ]);
+      setEntries(ents);
+      setProducts(prods);
+    } catch {
+      setError('Error al cargar datos.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   function openModal() {
     setDate(new Date().toISOString().split('T')[0]);
@@ -59,7 +67,7 @@ export default function MercanciaPage() {
   const itemTotal = items.reduce((sum, i) => sum + i.quantity * i.unitCost, 0);
   const totalCost = itemTotal + Number(additionalCosts);
 
-  function handleSave() {
+  async function handleSave() {
     if (!reference.trim() || items.some((i) => !i.productId || !i.variantId)) return;
     setSaving(true);
 
@@ -75,47 +83,55 @@ export default function MercanciaPage() {
       createdAt: new Date().toISOString(),
     };
 
-    inventoryRepository.createEntry(entry);
+    try {
+      await inventoryRepo.createEntry(entry);
 
-    items.forEach((item) => {
-      const product = productRepository.findById(item.productId);
-      if (!product) return;
-      const variant = product.variants.find((v) => v.id === item.variantId);
-      if (!variant) return;
-      const newStock = variant.stock + item.quantity;
-      const newStatus: Product['status'] =
-        newStock === 0 ? 'out_of_stock' : newStock <= 2 ? 'low_stock' : 'available';
-      productRepository.update({
-        ...product,
-        variants: product.variants.map((v) =>
-          v.id === item.variantId ? { ...v, stock: newStock } : v
-        ),
-        status: newStatus,
-        cost: item.unitCost || product.cost,
-      });
+      await Promise.all(items.map(async (item) => {
+        const product = await productRepo.findById(item.productId);
+        if (!product) return;
+        const variant = product.variants.find((v) => v.id === item.variantId);
+        if (!variant) return;
+        const newStock = variant.stock + item.quantity;
+        const newStatus: Product['status'] =
+          newStock === 0 ? 'out_of_stock' : newStock <= 2 ? 'low_stock' : 'available';
+        await productRepo.update({
+          ...product,
+          variants: product.variants.map((v) =>
+            v.id === item.variantId ? { ...v, stock: newStock } : v
+          ),
+          status: newStatus,
+          cost: item.unitCost || product.cost,
+        });
 
-      inventoryRepository.createMovement({
-        id: generateId('mov'),
-        productId: item.productId,
-        variantId: item.variantId,
-        type: 'entry',
-        quantity: item.quantity,
-        reason: `Entrada de mercancía — ${reference}`,
-        reference,
-        date,
-        createdAt: new Date().toISOString(),
-      });
-    });
+        await inventoryRepo.createMovement({
+          id: generateId('mov'),
+          productId: item.productId,
+          variantId: item.variantId,
+          type: 'entry',
+          quantity: item.quantity,
+          reason: `Entrada de mercancía — ${reference}`,
+          reference,
+          date,
+          createdAt: new Date().toISOString(),
+        });
+      }));
 
-    setTimeout(() => {
-      load();
+      await load();
       setModal(false);
+    } catch {
+      setError('Error al guardar entrada.');
+    } finally {
       setSaving(false);
-    }, 300);
+    }
   }
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Entrada de mercancía</h1>

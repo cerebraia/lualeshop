@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
-import { expenseRepository } from '@/lib/repositories/expenseRepository';
+import { expenseRepo } from '@/lib/repos';
 import type { Expense, ExpenseCategory, PaymentMethod } from '@/lib/types';
 import { formatPrice, formatDate, generateId } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -45,6 +45,7 @@ export default function GastosPage() {
   const [modal, setModal] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [category, setCategory] = useState<ExpenseCategory>('other');
@@ -53,8 +54,14 @@ export default function GastosPage() {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('cash');
   const [notes, setNotes] = useState('');
 
-  function load() { setExpenses(expenseRepository.findAll()); }
-  useEffect(load, []);
+  async function load() {
+    try {
+      setExpenses(await expenseRepo.findAll());
+    } catch {
+      setError('Error al cargar datos.');
+    }
+  }
+  useEffect(() => { load(); }, []);
 
   const totalByCategory = CATEGORY_OPTIONS.reduce((acc, o) => {
     acc[o.value] = expenses.filter((e) => e.category === o.value).reduce((s, e) => s + e.amount, 0);
@@ -63,39 +70,51 @@ export default function GastosPage() {
 
   const totalExpenses = expenses.reduce((s, e) => s + e.amount, 0);
 
-  function handleSave() {
+  async function handleSave() {
     if (!description.trim() || !amount) return;
     setSaving(true);
-    setTimeout(() => {
-      const expense: Expense = {
-        id: generateId('exp'),
-        date,
-        category,
-        description: description.trim(),
-        amount: Number(amount),
-        paymentMethod,
-        notes: notes.trim() || undefined,
-        createdAt: new Date().toISOString(),
-      };
-      expenseRepository.create(expense);
-      load();
+    const expense: Expense = {
+      id: generateId('exp'),
+      date,
+      category,
+      description: description.trim(),
+      amount: Number(amount),
+      paymentMethod,
+      notes: notes.trim() || undefined,
+      createdAt: new Date().toISOString(),
+    };
+    try {
+      await expenseRepo.create(expense);
+      await load();
       setModal(false);
-      setSaving(false);
       setDescription('');
       setAmount('');
       setNotes('');
-    }, 300);
+    } catch {
+      setError('Error al guardar.');
+    } finally {
+      setSaving(false);
+    }
   }
 
-  function handleDelete() {
+  async function handleDelete() {
     if (!deleteId) return;
-    expenseRepository.delete(deleteId);
-    setDeleteId(null);
-    load();
+    try {
+      await expenseRepo.delete(deleteId);
+      setDeleteId(null);
+      await load();
+    } catch {
+      setError('Error al eliminar gasto.');
+    }
   }
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Gastos</h1>

@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import {
   LayoutDashboard,
   Package,
@@ -15,6 +15,7 @@ import {
   Settings,
   ChevronRight,
   Rocket,
+  LogOut,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -38,6 +39,17 @@ interface AdminSidebarProps {
 
 export function AdminSidebar({ onClose }: AdminSidebarProps) {
   const pathname = usePathname();
+  const router = useRouter();
+  const isMock = (process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'mock') !== 'supabase';
+
+  async function handleLogout() {
+    if (!isMock) {
+      const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
+      await getSupabaseBrowserClient().auth.signOut();
+    }
+    router.push('/admin/login');
+    router.refresh();
+  }
 
   return (
     <div className="flex flex-col h-full">
@@ -54,11 +66,13 @@ export function AdminSidebar({ onClose }: AdminSidebarProps) {
         </div>
       </div>
 
-      {/* Demo notice */}
-      <div className="mx-3 mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-2">
-        <p className="text-yellow-400 text-xs font-medium">Modo demostración</p>
-        <p className="text-yellow-400/70 text-xs">Datos locales / sin autenticación</p>
-      </div>
+      {/* Demo notice — only in mock mode */}
+      {isMock && (
+        <div className="mx-3 mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-2">
+          <p className="text-yellow-400 text-xs font-medium">Modo demostración</p>
+          <p className="text-yellow-400/70 text-xs">Datos locales / sin autenticación</p>
+        </div>
+      )}
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
@@ -88,10 +102,17 @@ export function AdminSidebar({ onClose }: AdminSidebarProps) {
       </nav>
 
       {/* Footer */}
-      <div className="px-5 py-4 border-t border-white/10">
-        <Link href="/" className="text-xs text-white/40 hover:text-white/70 transition-colors">
+      <div className="px-5 py-4 border-t border-white/10 space-y-2">
+        <Link href="/" className="block text-xs text-white/40 hover:text-white/70 transition-colors">
           ← Ver tienda pública
         </Link>
+        <button
+          onClick={handleLogout}
+          className="flex items-center gap-2 text-xs text-white/40 hover:text-white/70 transition-colors w-full text-left"
+        >
+          <LogOut size={12} />
+          Cerrar sesión
+        </button>
       </div>
     </div>
   );

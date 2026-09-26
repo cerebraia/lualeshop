@@ -49,6 +49,36 @@ export const supabaseOrderRepository = {
     return (data ?? []).map(mapOrder);
   },
 
+  async create(order: Order): Promise<void> {
+    const supabase = getSupabaseBrowserClient();
+    const { error: ordErr } = await supabase.from('orders').insert({
+      id:                       order.id,
+      customer_id:              order.customerId || null,
+      customer_name_snapshot:   order.customerName,
+      status:                   order.status,
+      payment_status:           order.paymentStatus,
+      subtotal:                 order.total,
+      total:                    order.total,
+      notes:                    order.notes ?? null,
+      created_at:               order.createdAt,
+    });
+    if (ordErr) throw ordErr;
+    if (order.items.length > 0) {
+      const { error: itemErr } = await supabase.from('order_items').insert(
+        order.items.map((it) => ({
+          order_id:              order.id,
+          product_id:            it.productId,
+          variant_id:            it.variantId || null,
+          product_name_snapshot: it.productName,
+          unit_price:            it.unitPrice,
+          quantity:              it.quantity,
+          line_total:            it.totalPrice,
+        }))
+      );
+      if (itemErr) throw itemErr;
+    }
+  },
+
   async update(updated: Order): Promise<void> {
     const { error } = await getSupabaseBrowserClient()
       .from('orders')

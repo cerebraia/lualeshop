@@ -14,9 +14,7 @@ import {
   Settings,
   Info,
 } from 'lucide-react';
-import { orderRepository } from '@/lib/repositories/orderRepository';
-import { expenseRepository } from '@/lib/repositories/expenseRepository';
-import { productRepository } from '@/lib/repositories/productRepository';
+import { orderRepo, expenseRepo, productRepo } from '@/lib/repos';
 import type { Order, Expense, Product } from '@/lib/types';
 import { formatPrice, formatDate } from '@/lib/utils';
 
@@ -76,11 +74,23 @@ export default function AdminDashboard() {
   const [orders, setOrders] = useState<Order[]>([]);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setOrders(orderRepository.findAll());
-    setExpenses(expenseRepository.findAll());
-    setProducts(productRepository.findAll());
+    (async () => {
+      try {
+        const [ords, exps, prods] = await Promise.all([
+          orderRepo.findAll(),
+          expenseRepo.findAll(),
+          productRepo.findAll(),
+        ]);
+        setOrders(ords);
+        setExpenses(exps);
+        setProducts(prods);
+      } catch {
+        setError('Error al cargar datos.');
+      }
+    })();
   }, []);
 
   const paidOrders = orders.filter((o) => o.paymentStatus === 'paid');
@@ -113,6 +123,12 @@ export default function AdminDashboard() {
         <h1 className="text-2xl font-extrabold text-brown">Resumen</h1>
         <p className="text-brown-light text-sm">Vista general del negocio</p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-6 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Demo banner */}
       <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 mb-6 text-sm">

@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { AlertTriangle, Plus, Search } from 'lucide-react';
-import { productRepository } from '@/lib/repositories/productRepository';
-import { inventoryRepository } from '@/lib/repositories/inventoryRepository';
+import { productRepo, inventoryRepo } from '@/lib/repos';
 import type { Product, InventoryMovement } from '@/lib/types';
 import { formatDate, generateId } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -21,13 +20,22 @@ export default function InventarioPage() {
   const [qty, setQty] = useState('1');
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  function load() {
-    setProducts(productRepository.findAll());
-    setMovements(inventoryRepository.findAllMovements());
+  async function load() {
+    try {
+      const [prods, movs] = await Promise.all([
+        productRepo.findAll(),
+        inventoryRepo.findAllMovements(),
+      ]);
+      setProducts(prods);
+      setMovements(movs);
+    } catch {
+      setError('Error al cargar datos.');
+    }
   }
 
-  useEffect(load, []);
+  useEffect(() => { load(); }, []);
 
   const selectedProduct = products.find((p) => p.id === selectedProductId);
   const selectedVariant = selectedProduct?.variants.find((v) => v.id === selectedVariantId);
@@ -38,7 +46,7 @@ export default function InventarioPage() {
     p.name.toLowerCase().includes(search.toLowerCase())
   );
 
-  function handleAdjust() {
+  async function handleAdjust() {
     if (!selectedProductId || !selectedVariantId || !reason.trim()) return;
     setSaving(true);
     const movement: InventoryMovement = {
@@ -51,39 +59,48 @@ export default function InventarioPage() {
       date: new Date().toISOString().split('T')[0],
       createdAt: new Date().toISOString(),
     };
-    inventoryRepository.createMovement(movement);
 
-    const product = productRepository.findById(selectedProductId);
-    if (product) {
-      const variant = product.variants.find((v) => v.id === selectedVariantId);
-      if (variant) {
-        const delta = type === 'exit' ? -Number(qty) : Number(qty);
-        const newStock = Math.max(0, variant.stock + delta);
-        const newStatus: Product['status'] =
-          newStock === 0 ? 'out_of_stock' : newStock <= 2 ? 'low_stock' : 'available';
-        productRepository.update({
-          ...product,
-          variants: product.variants.map((v) =>
-            v.id === selectedVariantId ? { ...v, stock: newStock } : v
-          ),
-          status: newStatus,
-        });
+    try {
+      await inventoryRepo.createMovement(movement);
+
+      const product = await productRepo.findById(selectedProductId);
+      if (product) {
+        const variant = product.variants.find((v) => v.id === selectedVariantId);
+        if (variant) {
+          const delta = type === 'exit' ? -Number(qty) : Number(qty);
+          const newStock = Math.max(0, variant.stock + delta);
+          const newStatus: Product['status'] =
+            newStock === 0 ? 'out_of_stock' : newStock <= 2 ? 'low_stock' : 'available';
+          await productRepo.update({
+            ...product,
+            variants: product.variants.map((v) =>
+              v.id === selectedVariantId ? { ...v, stock: newStock } : v
+            ),
+            status: newStatus,
+          });
+        }
       }
-    }
 
-    setTimeout(() => {
-      load();
+      await load();
       setModal(false);
-      setSaving(false);
       setSelectedProductId('');
       setSelectedVariantId('');
       setQty('1');
       setReason('');
-    }, 300);
+    } catch {
+      setError('Error al registrar ajuste.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
     <div>
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Inventario</h1>

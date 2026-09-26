@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { Save, RotateCcw, Package, Tag } from 'lucide-react';
-import { settingsRepository } from '@/lib/repositories/settingsRepository';
+import { settingsRepo, productRepo, categoryRepo } from '@/lib/repos';
 import { productRepository } from '@/lib/repositories/productRepository';
 import { categoryRepository } from '@/lib/repositories/categoryRepository';
+import { settingsRepository } from '@/lib/repositories/settingsRepository';
 import type { StoreSettings } from '@/lib/types';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -17,11 +18,23 @@ export default function ConfiguracionPage() {
   const [productCount, setProductCount] = useState(0);
   const [categoryCount, setCategoryCount] = useState(0);
   const [showRestoreModal, setShowRestoreModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setSettings(settingsRepository.get());
-    setProductCount(productRepository.findAll().length);
-    setCategoryCount(categoryRepository.findAll().length);
+    (async () => {
+      try {
+        const [s, prods, cats] = await Promise.all([
+          settingsRepo.get(),
+          productRepo.findAll(),
+          categoryRepo.findAll(),
+        ]);
+        setSettings(s);
+        setProductCount(prods.length);
+        setCategoryCount(cats.length);
+      } catch {
+        setError('Error al cargar datos.');
+      }
+    })();
   }, []);
 
   function update(field: keyof StoreSettings, value: string) {
@@ -29,27 +42,44 @@ export default function ConfiguracionPage() {
     setSaved(false);
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!settings) return;
     setSaving(true);
-    setTimeout(() => {
-      settingsRepository.update(settings);
+    try {
+      await settingsRepo.update(settings);
       setSaved(true);
+    } catch {
+      setError('Error al guardar configuración.');
+    } finally {
       setSaving(false);
-    }, 400);
+    }
   }
 
-  function handleReset() {
+  async function handleReset() {
+    // reset() is a mock-only operation — use the underlying mock repo directly
     settingsRepository.reset();
-    setSettings(settingsRepository.get());
-    setSaved(false);
+    try {
+      setSettings(await settingsRepo.get());
+      setSaved(false);
+    } catch {
+      setError('Error al restablecer configuración.');
+    }
   }
 
-  function handleRestoreCatalog() {
+  async function handleRestoreCatalog() {
+    // reset() is a mock-only operation — use the underlying mock repos directly
     productRepository.reset();
     categoryRepository.reset();
-    setProductCount(productRepository.findAll().length);
-    setCategoryCount(categoryRepository.findAll().length);
+    try {
+      const [prods, cats] = await Promise.all([
+        productRepo.findAll(),
+        categoryRepo.findAll(),
+      ]);
+      setProductCount(prods.length);
+      setCategoryCount(cats.length);
+    } catch {
+      setError('Error al restaurar catálogo.');
+    }
     setShowRestoreModal(false);
   }
 
@@ -59,6 +89,11 @@ export default function ConfiguracionPage() {
 
   return (
     <div className="max-w-2xl">
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-5 text-sm">
+          {error}
+        </div>
+      )}
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-extrabold text-brown">Configuración</h1>

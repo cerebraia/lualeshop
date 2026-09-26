@@ -2,8 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { TrendingUp, TrendingDown, DollarSign, BarChart3 } from 'lucide-react';
-import { orderRepository } from '@/lib/repositories/orderRepository';
-import { expenseRepository } from '@/lib/repositories/expenseRepository';
+import { orderRepo, expenseRepo } from '@/lib/repos';
 import type { Order, Expense } from '@/lib/types';
 import { formatPrice, formatDate } from '@/lib/utils';
 
@@ -12,10 +11,21 @@ export default function FinanzasPage() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    setOrders(orderRepository.findPaid());
-    setExpenses(expenseRepository.findAll());
+    (async () => {
+      try {
+        const [paidOrds, exps] = await Promise.all([
+          orderRepo.findPaid(),
+          expenseRepo.findAll(),
+        ]);
+        setOrders(paidOrds);
+        setExpenses(exps);
+      } catch {
+        setError('Error al cargar datos.');
+      }
+    })();
   }, []);
 
   function inRange(dateStr: string): boolean {
@@ -38,6 +48,12 @@ export default function FinanzasPage() {
         <h1 className="text-2xl font-extrabold text-brown">Finanzas</h1>
         <p className="text-brown-light text-sm">Ingresos de pedidos pagados y gastos registrados</p>
       </div>
+
+      {error && (
+        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-6 text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Date filter */}
       <div className="flex flex-wrap gap-3 mb-6">
