@@ -198,7 +198,7 @@ export default function MercanciaPage() {
                     </div>
                     <Input placeholder="Cant." type="number" min="1" value={String(item.quantity)} onChange={(e) => updateItem(item.tempId, 'quantity', Number(e.target.value))} />
                     <div className="flex gap-1">
-                      <Input placeholder="$ Costo" type="number" min="0" step="0.01" value={String(item.unitCost)} onChange={(e) => updateItem(item.tempId, 'unitCost', Number(e.target.value))} />
+                      <Input placeholder="€ Costo" type="number" min="0" step="0.01" value={String(item.unitCost)} onChange={(e) => updateItem(item.tempId, 'unitCost', Number(e.target.value))} />
                       {items.length > 1 && (
                         <button onClick={() => removeItem(item.tempId)} className="text-red-400 px-1"><Trash2 size={14} /></button>
                       )}
@@ -209,7 +209,7 @@ export default function MercanciaPage() {
             </div>
           </div>
 
-          <Input label="Gastos adicionales (USD)" type="number" min="0" step="0.01" value={additionalCosts} onChange={(e) => setAdditionalCosts(e.target.value)} hint="Transporte, comisiones, etc." />
+          <Input label="Gastos adicionales (€)" type="number" min="0" step="0.01" value={additionalCosts} onChange={(e) => setAdditionalCosts(e.target.value)} hint="Transporte, comisiones, etc." />
           <Textarea label="Observaciones" value={notes} onChange={(e) => setNotes(e.target.value)} />
 
           <div className="bg-cream rounded-2xl px-4 py-3 flex justify-between items-center">

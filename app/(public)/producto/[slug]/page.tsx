@@ -19,7 +19,7 @@ import { mockProducts } from '@/lib/mock/products';
 import { mockCategories } from '@/lib/mock/categories';
 import { intentRepository } from '@/lib/repositories/intentRepository';
 import type { ProductVariant, ProductPurchaseOption } from '@/lib/types';
-import { formatPrice, buildWhatsAppLink } from '@/lib/utils';
+import { formatCurrency, formatPrice, buildWhatsAppLink } from '@/lib/utils';
 import { Badge, StatusBadge } from '@/components/ui/Badge';
 import { ProductCard } from '@/components/product/ProductCard';
 import { ProductImageCarousel } from '@/components/product/ProductImageCarousel';
@@ -35,7 +35,7 @@ function buildMessage(
   sku: string,
   categoryName: string | undefined,
   purchaseOptionLabel: string | undefined,
-  variant: ProductVariant,
+  variantSize: string | undefined,
   quantity: number,
   price: number,
   url: string
@@ -46,11 +46,11 @@ function buildMessage(
     '',
     `SKU: ${sku}`,
     ...(categoryName ? [`Categoría: ${categoryName}`] : []),
-    `Opción: ${purchaseOptionLabel ?? 'Unidad'}`,
-    `Talla: ${variant.size}`,
+    ...(purchaseOptionLabel ? [`Opción: ${purchaseOptionLabel}`] : []),
+    ...(variantSize ? [`Talla: ${variantSize}`] : []),
     `Cantidad: ${quantity}`,
-    `Precio unitario: $${price.toFixed(2)}`,
-    `Total: $${total.toFixed(2)}`,
+    `Precio unitario: ${formatCurrency(price)}`,
+    `Total: ${formatCurrency(total)}`,
     `Enlace: ${url}`,
     '',
     '¿Está disponible?',
@@ -104,7 +104,7 @@ export default function ProductoPage() {
   }
 
   function handleWhatsApp() {
-    if (!selectedVariant) {
+    if (!selectedVariant && product.variants.length > 0) {
       setValidationError('Por favor selecciona una talla antes de continuar.');
       return;
     }
@@ -123,7 +123,7 @@ export default function ProductoPage() {
       product.sku,
       categories[0]?.name,
       selectedOption?.label,
-      selectedVariant,
+      selectedVariant?.size,
       quantity,
       displayPrice,
       url
@@ -136,7 +136,7 @@ export default function ProductoPage() {
         productId: product.id,
         productName: product.name,
         purchaseOptionLabel: selectedOption?.label,
-        variantSize: selectedVariant.size,
+        variantSize: selectedVariant?.size,
         quantity,
         price: displayPrice,
         origin: 'product_page',
@@ -166,7 +166,7 @@ export default function ProductoPage() {
     offers: {
       '@type': 'Offer',
       url: productUrl,
-      priceCurrency: 'USD',
+      priceCurrency: 'EUR',
       price: displayPrice.toFixed(2),
       // Only state availability when inventory is confirmed; otherwise omit
       ...(product.inventoryConfigured
@@ -320,7 +320,7 @@ export default function ProductoPage() {
                       {option.unitDescription && (
                         <span className="ml-1 text-xs opacity-70">· {option.unitDescription}</span>
                       )}
-                      <span className="ml-2 font-bold">{formatPrice(option.price)}</span>
+                      <span className="ml-2 font-bold">{formatCurrency(option.price)}</span>
                     </button>
                   );
                 })}

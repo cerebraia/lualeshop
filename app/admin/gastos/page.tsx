@@ -152,7 +152,7 @@ export default function GastosPage() {
         <div className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input label="Fecha" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            <Input label="Monto (USD) *" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            <Input label="Monto (€) *" type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} />
           </div>
           <Select label="Categoría" value={category} onChange={(e) => setCategory(e.target.value as ExpenseCategory)} options={CATEGORY_OPTIONS} />
           <Input label="Descripción *" value={description} onChange={(e) => setDescription(e.target.value)} />

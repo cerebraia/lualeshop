@@ -15,8 +15,21 @@ export function slugify(text: string): string {
     .replace(/(^-|-$)/g, '');
 }
 
-export function formatPrice(amount: number, symbol = '$'): string {
-  return `${symbol}${amount.toFixed(2)}`;
+/** Central currency formatter — always EUR, locale es-ES (e.g. "20,00 €") */
+const _eurFormatter = new Intl.NumberFormat('es-ES', {
+  style: 'currency',
+  currency: 'EUR',
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+export function formatCurrency(amount: number): string {
+  return _eurFormatter.format(amount);
+}
+
+/** Alias kept for backward compatibility — delegates to formatCurrency */
+export function formatPrice(amount: number): string {
+  return formatCurrency(amount);
 }
 
 export function formatDate(dateStr: string): string {

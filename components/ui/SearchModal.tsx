@@ -39,8 +39,8 @@ function prefersReducedMotion() {
 }
 
 function formatPrice(price: number, isMulti: boolean) {
-  if (isMulti) return `Desde $${price.toFixed(2)}`;
-  return `$${price.toFixed(2)}`;
+  const fmt = new Intl.NumberFormat('es-ES', { style: 'currency', currency: 'EUR' }).format(price);
+  return isMulti ? `Desde ${fmt}` : fmt;
 }
 
 const STATUS_LABEL: Record<string, string> = {

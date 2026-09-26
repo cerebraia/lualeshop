@@ -462,8 +462,8 @@ export default function ProductosPage() {
           </div>
           <Textarea label="Descripción" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Precio (USD) *" type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} error={errors.price} />
-            <Input label="Costo (USD) *" type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))} error={errors.cost} />
+            <Input label="Precio (€) *" type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} error={errors.price} />
+            <Input label="Costo (€) *" type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))} error={errors.cost} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <Select

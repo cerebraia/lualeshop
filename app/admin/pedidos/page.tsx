@@ -288,7 +288,7 @@ export default function PedidosPage() {
                     </div>
                     <Input placeholder="Cant." type="number" min="1" value={String(item.quantity)} onChange={(e) => updateItem(item.tempId, 'quantity', e.target.value)} />
                     <div className="flex gap-1">
-                      <Input placeholder="$ Precio" type="number" min="0" step="0.01" value={String(item.unitPrice)} onChange={(e) => updateItem(item.tempId, 'unitPrice', e.target.value)} />
+                      <Input placeholder="€ Precio" type="number" min="0" step="0.01" value={String(item.unitPrice)} onChange={(e) => updateItem(item.tempId, 'unitPrice', e.target.value)} />
                       {items.length > 1 && (
                         <button onClick={() => setItems((prev) => prev.filter((i) => i.tempId !== item.tempId))} className="text-red-400 px-1"><Trash2 size={14} /></button>
                       )}
