@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { mockCategories } from '@/lib/mock/categories';
-import { mockProducts } from '@/lib/mock/products';
+import { getCategoryBySlug, getProductsByCategory } from '@/lib/data/catalog';
 
 const SITE = 'https://lualekids.shop';
 
@@ -29,12 +28,10 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const cat = mockCategories.find((c) => c.slug === slug && c.active);
+  const cat = await getCategoryBySlug(slug);
   if (!cat) return {};
 
-  const productCount = mockProducts.filter(
-    (p) => p.categoryIds.includes(cat.id) && p.visible
-  ).length;
+  const products = await getProductsByCategory(cat.id);
 
   const meta = CATEGORY_META[slug] ?? {
     title: cat.name,
@@ -43,7 +40,7 @@ export async function generateMetadata({
 
   return {
     title: meta.title,
-    description: `${meta.description} ${productCount} prendas disponibles.`,
+    description: `${meta.description} ${products.length} prendas disponibles.`,
     alternates: { canonical: `${SITE}/categoria/${slug}` },
     openGraph: {
       title: `${meta.title} | Luale Kids Shop`,

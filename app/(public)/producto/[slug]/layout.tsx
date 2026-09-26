@@ -1,7 +1,6 @@
 import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
-import { mockProducts } from '@/lib/mock/products';
-import { mockCategories } from '@/lib/mock/categories';
+import { getProductBySlug, getCategories } from '@/lib/data/catalog';
 import { formatPrice } from '@/lib/utils';
 
 const SITE = 'https://lualekids.shop';
@@ -12,16 +11,18 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const product = mockProducts.find((p) => p.slug === slug && p.visible);
+  const [product, allCategories] = await Promise.all([
+    getProductBySlug(slug),
+    getCategories(),
+  ]);
   if (!product) return {};
 
-  const categories = mockCategories
+  const categories = allCategories
     .filter((c) => product.categoryIds.includes(c.id))
     .map((c) => c.name)
     .join(', ');
 
-  const isMultiPrice =
-    product.purchaseOptions && product.purchaseOptions.length > 1;
+  const isMultiPrice = product.purchaseOptions && product.purchaseOptions.length > 1;
   const priceText = isMultiPrice
     ? `Desde ${formatPrice(product.price)}`
     : formatPrice(product.price);
@@ -31,7 +32,6 @@ export async function generateMetadata({
     ? product.description.slice(0, 155)
     : `${product.name} de Luale Kids Shop. ${categories}. ${priceText}.`;
 
-  // Use real product image when available
   const productImageUrl = product.images[0]
     ? `${SITE}${product.images[0]}`
     : `${SITE}/og-image.jpg`;
@@ -46,12 +46,7 @@ export async function generateMetadata({
       url: `${SITE}/producto/${slug}`,
       type: 'website',
       siteName: 'Luale Kids Shop',
-      images: [
-        {
-          url: productImageUrl,
-          alt: `${product.name} de Luale Kids Shop`,
-        },
-      ],
+      images: [{ url: productImageUrl, alt: `${product.name} de Luale Kids Shop` }],
     },
     twitter: {
       card: 'summary_large_image',

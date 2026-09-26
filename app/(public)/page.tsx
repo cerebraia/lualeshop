@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
-import { mockProducts } from '@/lib/mock/products';
-import { mockCategories } from '@/lib/mock/categories';
+import { getFeaturedProducts, getNewArrivals, getCategories, getVisibleProducts } from '@/lib/data/catalog';
 import { HeroSection } from '@/components/home/HeroSection';
 import { CategoryShowcase } from '@/components/home/CategoryShowcase';
 import { FeaturedProducts } from '@/components/home/FeaturedProducts';
@@ -27,45 +26,29 @@ export const metadata: Metadata = {
   },
 };
 
-// ─── Data preparation (server-side) ──────────────────────────────────────────
+export default async function HomePage() {
+  const [featuredProducts, newArrivals, categories, visibleProducts] = await Promise.all([
+    getFeaturedProducts(16),
+    getNewArrivals(4),
+    getCategories(),
+    getVisibleProducts(),
+  ]);
 
-const visibleProducts = mockProducts.filter((p) => p.visible);
-
-// Up to 16 featured products for the grid carousel, sorted by featuredOrder
-const featuredProducts = visibleProducts
-  .filter((p) => p.featured)
-  .sort((a, b) => (a.featuredOrder ?? 999) - (b.featuredOrder ?? 999))
-  .slice(0, 16);
-
-// Up to 4 new arrivals (isNew flag), deterministic order by catalogNumber
-const newArrivals = visibleProducts
-  .filter((p) => p.isNew)
-  .sort((a, b) => (a.catalogNumber ?? 0) - (b.catalogNumber ?? 0))
-  .slice(0, 4);
-
-// Categories with real product counts, sorted by order
-const categoriesWithCount = mockCategories
-  .filter((c) => c.active)
-  .sort((a, b) => a.order - b.order)
-  .map((c) => ({
+  const categoriesWithCount = categories.map((c) => ({
     ...c,
     count: visibleProducts.filter((p) => p.categoryIds.includes(c.id)).length,
   }));
 
-// Hero product previews (first 3 featured or first 3 visible)
-const heroProducts = (featuredProducts.length >= 3 ? featuredProducts : visibleProducts)
-  .slice(0, 3)
-  .map((p) => ({
-    name: p.name,
-    price: p.price,
-    garmentType: p.garmentType,
-    image: p.images[0] ?? null,
-    index: mockProducts.indexOf(p),
-  }));
+  const heroProducts = (featuredProducts.length >= 3 ? featuredProducts : visibleProducts)
+    .slice(0, 3)
+    .map((p, index) => ({
+      name: p.name,
+      price: p.price,
+      garmentType: p.garmentType,
+      image: p.images[0] ?? null,
+      index,
+    }));
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
-export default function HomePage() {
   return (
     <>
       <HeroSection products={heroProducts} />

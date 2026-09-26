@@ -97,23 +97,21 @@ begin
     );
 
     -- Update variant costs (weighted average)
+    -- ON CONFLICT DO UPDATE SET does not support FROM; use plpgsql vars instead.
     insert into variant_costs (variant_id, average_cost, last_cost)
     values (v_item.variant_id, v_item.unit_cost, v_item.unit_cost)
     on conflict (variant_id) do update set
       average_cost = case
-        when (inventory_levels.quantity_on_hand - v_item.quantity) <= 0 then
+        when v_prev_qty <= 0 then
           v_item.unit_cost
         else
           (
-            (select average_cost from variant_costs vc where vc.variant_id = v_item.variant_id)
-            * (inventory_levels.quantity_on_hand - v_item.quantity)
+            variant_costs.average_cost * v_prev_qty
             + v_item.unit_cost * v_item.quantity
-          ) / inventory_levels.quantity_on_hand
+          ) / v_new_qty
         end,
       last_cost = v_item.unit_cost,
-      updated_at = now()
-    from inventory_levels
-    where inventory_levels.variant_id = v_item.variant_id;
+      updated_at = now();
   end loop;
 
   -- Mark entry as confirmed
