@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
 import { MigrationRunner } from '@/components/MigrationRunner';
@@ -13,23 +13,35 @@ import { MigrationRunner } from '@/components/MigrationRunner';
  * supabase mode: validates session + active profile via Supabase Auth.
  *                Middleware handles the initial redirect; this layout
  *                adds a second check for session expiry during the session.
+ *
+ * The login page (/admin/login) is rendered directly without the auth
+ * check to avoid an infinite spinner: the middleware already redirects
+ * unauthenticated users to /admin/login, and running the check there
+ * too would call router.replace('/admin/login') while already on that
+ * page, preventing authChecked from ever becoming true.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
 
   const provider = process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'mock';
+  const isLoginPage = pathname === '/admin/login';
 
   useEffect(() => {
-    if (provider !== 'supabase') {
+    // Mock mode or login page: no auth check needed.
+    // The login page is handled by the middleware + its own form logic.
+    if (provider !== 'supabase' || isLoginPage) {
       setAuthChecked(true);
       return;
     }
 
-    // When provider=supabase, verify the session is still valid
     let cancelled = false;
+
     (async () => {
+      let redirectTo = '';
+
       try {
         const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
         const supabase = getSupabaseBrowserClient();
@@ -38,36 +50,47 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         if (cancelled) return;
 
         if (!user) {
-          router.replace('/admin/login');
-          return;
-        }
+          redirectTo = `/admin/login?next=${encodeURIComponent(pathname)}`;
+        } else {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('active, role')
+            .eq('id', user.id)
+            .single();
 
-        // Verify the profile is active and has an allowed role
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('active, role')
-          .eq('id', user.id)
-          .single();
+          if (cancelled) return;
 
-        if (cancelled) return;
-
-        if (!profile?.active || !['admin', 'owner'].includes(profile.role)) {
-          await supabase.auth.signOut();
-          router.replace('/admin/login');
-          return;
+          if (!profile?.active || !['admin', 'owner'].includes(profile.role)) {
+            await supabase.auth.signOut();
+            redirectTo = '/admin/login';
+          }
         }
       } catch {
-        // If Supabase is unreachable, redirect to login rather than granting access
-        router.replace('/admin/login');
-        return;
+        redirectTo = '/admin/login';
       }
-      setAuthChecked(true);
+
+      if (cancelled) return;
+
+      if (redirectTo) {
+        router.replace(redirectTo);
+        // Do not set authChecked — the spinner stays while navigation happens.
+        // If navigation is unexpectedly slow, the user still sees a loading state
+        // rather than a flash of protected content.
+      } else {
+        setAuthChecked(true);
+      }
     })();
 
     return () => { cancelled = true; };
-  }, [provider, router]);
+  }, [provider, isLoginPage, pathname, router]);
 
-  // Show nothing while auth is being verified in supabase mode
+  // Login page: render without sidebar or auth wrapper.
+  // (The layout still wraps it in the Next.js tree, but we pass straight through.)
+  if (isLoginPage) {
+    return <>{children}</>;
+  }
+
+  // Show spinner while auth is being verified in supabase mode.
   if (provider === 'supabase' && !authChecked) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">

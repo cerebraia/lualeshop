@@ -24,11 +24,18 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
   if (provider !== 'supabase') return response;
 
   // In supabase mode: check the auth cookie exists.
-  // Full validation (profile.active, role) happens in the Server Component
+  // Full validation (profile.active, role) happens in the layout client check
   // — middleware only blocks unauthenticated requests early.
+  // Supabase SSR can chunk large tokens across several cookies:
+  //   sb-<ref>-auth-token, sb-<ref>-auth-token.0, sb-<ref>-auth-token.1 …
+  // Both forms must be detected to avoid false "not authenticated" redirects.
   const hasAuthCookie = request.cookies
     .getAll()
-    .some((c) => c.name.startsWith('sb-') && c.name.endsWith('-auth-token'));
+    .some(
+      (c) =>
+        c.name.startsWith('sb-') &&
+        (c.name.endsWith('-auth-token') || c.name.includes('-auth-token.'))
+    );
 
   if (isLoginPage) {
     // If already logged in, redirect away from the login page
