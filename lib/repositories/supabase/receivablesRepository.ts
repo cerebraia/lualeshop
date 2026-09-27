@@ -1,7 +1,7 @@
 'use client';
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
-import type { Receivable, ReceivablePayment, ReceivableStatus, PaymentMethod } from '@/lib/types';
+import type { Receivable, ReceivablePayment, ReceivableStatus, OrderSource, PaymentMethod } from '@/lib/types';
 
 /** Derive the display status from stored fields. Never stored in DB to avoid divergence. */
 function deriveStatus(
@@ -43,6 +43,8 @@ function mapReceivable(row: Record<string, unknown>, payments: ReceivablePayment
     orderNumber: String(row.order_number ?? row.id),
     customerId:  String(row.customer_id ?? ''),
     customerName: String(row.customer_name_snapshot ?? ''),
+    description: row.description ? String(row.description) : undefined,
+    source:      (row.source as OrderSource) ?? 'admin',
     total,
     paidAmount,
     balance,
@@ -116,6 +118,35 @@ export const supabaseReceivablesRepository = {
       p_due_date: dueDate,
     });
     if (error) throw error;
+  },
+
+  async createManualReceivable(p: {
+    customerName: string;
+    description: string;
+    total: number;
+    dueDate?: string;
+    customerId?: string;
+    initialPayment?: number;
+    paymentMethod?: PaymentMethod;
+    paymentDate?: string;
+    reference?: string;
+    notes?: string;
+  }): Promise<{ orderId: string; orderNumber: string }> {
+    const { data, error } = await getSupabaseBrowserClient().rpc('create_manual_receivable', {
+      p_customer_name:   p.customerName,
+      p_description:     p.description,
+      p_total:           p.total,
+      p_due_date:        p.dueDate ?? null,
+      p_customer_id:     p.customerId ?? null,
+      p_initial_payment: p.initialPayment ?? null,
+      p_payment_method:  p.paymentMethod ?? 'cash',
+      p_payment_date:    p.paymentDate ?? new Date().toISOString().split('T')[0],
+      p_reference:       p.reference ?? null,
+      p_notes:           p.notes ?? null,
+    });
+    if (error) throw error;
+    const d = data as { order_id: string; order_number: string };
+    return { orderId: d.order_id, orderNumber: d.order_number };
   },
 
   /** Summary metrics */

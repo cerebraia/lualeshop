@@ -7,6 +7,7 @@ export type PaymentMethod = 'cash' | 'transfer' | 'mobile_payment' | 'other';
 
 // ── Receivables (cuentas por cobrar) ─────────────────────────
 export type ReceivableStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+export type OrderSource = 'admin' | 'manual_receivable';
 
 export interface ReceivablePayment {
   id: string;
@@ -26,6 +27,8 @@ export interface Receivable {
   orderNumber: string;
   customerId: string;
   customerName: string;
+  description?: string;   // concept for manual_receivable orders
+  source?: OrderSource;
   total: number;
   paidAmount: number;
   balance: number;

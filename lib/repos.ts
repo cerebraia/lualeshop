@@ -378,6 +378,21 @@ export const receivablesRepo = {
     const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
     return supabaseReceivablesRepository.getSummary();
   },
+  async createManualReceivable(p: {
+    customerName: string;
+    description: string;
+    total: number;
+    dueDate?: string;
+    customerId?: string;
+    initialPayment?: number;
+    paymentMethod?: PaymentMethod;
+    paymentDate?: string;
+    reference?: string;
+    notes?: string;
+  }): Promise<{ orderId: string; orderNumber: string }> {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.createManualReceivable(p);
+  },
 };
 
 // ── Payables (cuentas por pagar) ─────────────────────────────────────────────

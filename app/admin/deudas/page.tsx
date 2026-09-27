@@ -6,11 +6,11 @@ import {
   DollarSign, Plus, Search, RefreshCw, X, ChevronDown, ChevronUp,
   CheckCircle, Clock, XCircle,
 } from 'lucide-react';
-import { receivablesRepo, payablesRepo } from '@/lib/repos';
+import { receivablesRepo, payablesRepo, customerRepo } from '@/lib/repos';
 import type {
   Receivable, ReceivableStatus, ReceivablePayment,
   Payable, PayableStatus, PayablePayment,
-  PaymentMethod,
+  PaymentMethod, Customer,
 } from '@/lib/types';
 import { Button } from '@/components/ui/Button';
 import { Input, Select, Textarea } from '@/components/ui/Input';
@@ -80,8 +80,15 @@ function MetricCard({ label, value, icon, color, urgent }: {
 // RECEIVABLES TAB
 // ─────────────────────────────────────────────────────────────────────────────
 
+const EMPTY_RECEIVABLE_FORM = {
+  customerName: '', customerId: '', description: '',
+  total: '', dueDate: '', initialPayment: '',
+  paymentMethod: 'transfer' as PaymentMethod, reference: '', notes: '',
+};
+
 function ReceivablesTab() {
   const [items, setItems] = useState<Receivable[]>([]);
+  const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [search, setSearch] = useState('');
@@ -92,6 +99,8 @@ function ReceivablesTab() {
   const [showPayModal, setShowPayModal] = useState(false);
   const [showDueModal, setShowDueModal] = useState(false);
   const [showVoidModal, setShowVoidModal] = useState<ReceivablePayment | null>(null);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_RECEIVABLE_FORM);
   const [expanded, setExpanded] = useState<string | null>(null);
   const [payForm, setPayForm] = useState({ amount: '', method: 'transfer' as PaymentMethod, date: new Date().toISOString().split('T')[0], reference: '', notes: '' });
   const [dueDate, setDueDate] = useState('');
@@ -100,7 +109,14 @@ function ReceivablesTab() {
 
   const load = useCallback(async () => {
     setLoading(true); setError(null);
-    try { setItems(await receivablesRepo.findAll()); }
+    try {
+      const [rcvs, custs] = await Promise.all([
+        receivablesRepo.findAll(),
+        customerRepo.findAll().catch(() => [] as Customer[]),
+      ]);
+      setItems(rcvs);
+      setCustomers(custs);
+    }
     catch { setError('No se pudo cargar las cuentas por cobrar.'); }
     finally { setLoading(false); }
   }, []);
@@ -109,8 +125,13 @@ function ReceivablesTab() {
 
   const filtered = items
     .filter((r) => {
-      if (search && !r.customerName.toLowerCase().includes(search.toLowerCase()) &&
-          !r.orderNumber.toLowerCase().includes(search.toLowerCase())) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        const match = r.customerName.toLowerCase().includes(q)
+          || r.orderNumber.toLowerCase().includes(q)
+          || (r.description ?? '').toLowerCase().includes(q);
+        if (!match) return false;
+      }
       if (filterStatus && r.status !== filterStatus) return false;
       return true;
     })
@@ -172,6 +193,35 @@ function ReceivablesTab() {
     finally { setSaving(false); }
   }
 
+  async function handleCreate() {
+    const total = parseFloat(createForm.total);
+    if (!createForm.customerName.trim() || !createForm.description.trim() || !total || total <= 0 || !createForm.dueDate) return;
+    const initialPayment = createForm.initialPayment ? parseFloat(createForm.initialPayment) : undefined;
+    if (initialPayment !== undefined && (initialPayment < 0 || initialPayment > total)) {
+      setError('El pago inicial no puede ser negativo ni superar el total.');
+      return;
+    }
+    setSaving(true);
+    try {
+      await receivablesRepo.createManualReceivable({
+        customerName:   createForm.customerName.trim(),
+        customerId:     createForm.customerId || undefined,
+        description:    createForm.description.trim(),
+        total,
+        dueDate:        createForm.dueDate,
+        initialPayment,
+        paymentMethod:  createForm.paymentMethod,
+        reference:      createForm.reference || undefined,
+        notes:          createForm.notes || undefined,
+      });
+      setShowCreateModal(false);
+      setCreateForm(EMPTY_RECEIVABLE_FORM);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al crear cuenta por cobrar.');
+    } finally { setSaving(false); }
+  }
+
   if (loading) return <div className="flex justify-center py-16"><div className="w-6 h-6 border-2 border-brown/20 border-t-brown rounded-full animate-spin" /></div>;
 
   if (error) return (
@@ -198,7 +248,7 @@ function ReceivablesTab() {
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-[200px]">
           <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-brown-light" />
-          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente o pedido…"
+          <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar cliente, concepto o referencia…"
             className="w-full pl-9 pr-3 py-2.5 border border-rose/30 rounded-2xl text-sm text-brown focus:outline-none focus:border-rose bg-white" />
         </div>
         <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value as ReceivableStatus | '')}
@@ -208,6 +258,9 @@ function ReceivablesTab() {
             <option key={s} value={s}>{STATUS_LABEL[s]}</option>
           ))}
         </select>
+        <Button onClick={() => { setCreateForm(EMPTY_RECEIVABLE_FORM); setShowCreateModal(true); }} size="sm">
+          <Plus size={15} /> Nueva cuenta por cobrar
+        </Button>
       </div>
 
       {filtered.length === 0 ? (
@@ -224,6 +277,7 @@ function ReceivablesTab() {
                       <span className="flex items-center gap-1">{label}{sortIcon(col as typeof sortCol)}</span>
                     </th>
                   ))}
+                  <th className="text-left px-4 py-3 text-xs font-bold text-brown-light uppercase tracking-wide">Concepto</th>
                   <th className="px-4 py-3 text-xs font-bold text-brown-light uppercase tracking-wide">Estado</th>
                   <th className="px-4 py-3 text-xs font-bold text-brown-light uppercase tracking-wide">Acciones</th>
                 </tr>
@@ -235,7 +289,13 @@ function ReceivablesTab() {
                       <td className="px-4 py-3">
                         <button onClick={() => setExpanded((e) => e === r.orderId ? null : r.orderId)} className="text-left">
                           <p className="font-semibold text-brown">{r.customerName}</p>
-                          <p className="text-xs text-brown-light">Pedido #{r.orderNumber.slice(-6)}</p>
+                          <p className="text-xs text-brown-light">
+                            {r.source === 'manual_receivable' ? (
+                              <span className="text-rose font-semibold">Manual</span>
+                            ) : (
+                              <>Pedido #{r.orderNumber.slice(-6)}</>
+                            )}
+                          </p>
                         </button>
                       </td>
                       <td className="px-4 py-3 font-medium text-brown">{fmt(r.total)}</td>
@@ -244,6 +304,9 @@ function ReceivablesTab() {
                         {r.paidAmount > 0 && <p className="text-xs text-brown-light">Pagado: {fmt(r.paidAmount)}</p>}
                       </td>
                       <td className="px-4 py-3 text-brown-light text-xs">{r.dueDate ? formatDate(r.dueDate) : '—'}</td>
+                      <td className="px-4 py-3 text-xs text-brown-light max-w-[160px]">
+                        <p className="truncate">{r.description ?? '—'}</p>
+                      </td>
                       <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
                       <td className="px-4 py-3">
                         <div className="flex gap-1.5 flex-wrap">
@@ -262,7 +325,7 @@ function ReceivablesTab() {
                     </tr>
                     {expanded === r.orderId && (
                       <tr key={`${r.orderId}-detail`}>
-                        <td colSpan={6} className="px-4 pb-4 bg-cream/30">
+                        <td colSpan={7} className="px-4 pb-4 bg-cream/30">
                           <p className="text-xs font-bold text-brown-light uppercase tracking-wide mb-2 pt-2">Historial de pagos</p>
                           {r.payments.length === 0 ? (
                             <p className="text-xs text-brown-light">Sin pagos registrados</p>
@@ -341,6 +404,67 @@ function ReceivablesTab() {
           <div className="flex gap-3 pt-1">
             <Button variant="ghost" onClick={() => setShowVoidModal(null)} fullWidth>Cancelar</Button>
             <Button variant="danger" onClick={handleVoid} loading={saving} disabled={!voidReason.trim()} fullWidth>Anular pago</Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Create manual receivable modal */}
+      <Modal open={showCreateModal} onClose={() => setShowCreateModal(false)} title="Nueva cuenta por cobrar" size="sm">
+        <div className="space-y-3">
+          {/* Customer selector */}
+          {customers.length > 0 ? (
+            <div className="space-y-1">
+              <label className="text-xs font-bold text-brown-light uppercase tracking-wide">Cliente existente</label>
+              <select
+                value={createForm.customerId}
+                onChange={(e) => {
+                  const cust = customers.find((c) => c.id === e.target.value);
+                  setCreateForm((f) => ({ ...f, customerId: e.target.value, customerName: cust?.name ?? f.customerName }));
+                }}
+                className="w-full border border-rose/20 rounded-2xl px-4 py-3 text-sm text-brown focus:outline-none focus:border-rose"
+              >
+                <option value="">— Escribir nombre manualmente —</option>
+                {customers.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          ) : null}
+          <Input
+            label={`Nombre del cliente *${customers.length > 0 ? ' (o escribe uno nuevo)' : ''}`}
+            value={createForm.customerName}
+            disabled={!!createForm.customerId}
+            onChange={(e) => setCreateForm((f) => ({ ...f, customerName: e.target.value, customerId: '' }))}
+            placeholder="Ej. María González"
+          />
+          <Input label="Concepto / descripción *" value={createForm.description}
+            onChange={(e) => setCreateForm((f) => ({ ...f, description: e.target.value }))}
+            placeholder="Ej. Servicio de diseño, Producto especial…" />
+          <Input label="Total (€) *" type="number" min="0.01" step="0.01" value={createForm.total}
+            onChange={(e) => setCreateForm((f) => ({ ...f, total: e.target.value }))} />
+          <Input label="Fecha de vencimiento *" type="date" value={createForm.dueDate}
+            onChange={(e) => setCreateForm((f) => ({ ...f, dueDate: e.target.value }))} />
+          <div className="border-t border-cream pt-3">
+            <p className="text-xs text-brown-light mb-2">Pago inicial (opcional)</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Input label="Monto inicial (€)" type="number" min="0" step="0.01"
+                max={createForm.total || undefined}
+                value={createForm.initialPayment}
+                onChange={(e) => setCreateForm((f) => ({ ...f, initialPayment: e.target.value }))} />
+              <Select label="Método" value={createForm.paymentMethod}
+                onChange={(e) => setCreateForm((f) => ({ ...f, paymentMethod: e.target.value as PaymentMethod }))}
+                options={PAYMENT_METHOD_OPTIONS} />
+            </div>
+          </div>
+          <Input label="Referencia" value={createForm.reference}
+            onChange={(e) => setCreateForm((f) => ({ ...f, reference: e.target.value }))} />
+          <Textarea label="Notas" value={createForm.notes}
+            onChange={(e) => setCreateForm((f) => ({ ...f, notes: e.target.value }))} />
+          <div className="flex gap-3 pt-1">
+            <Button variant="ghost" onClick={() => setShowCreateModal(false)} fullWidth>Cancelar</Button>
+            <Button onClick={handleCreate} loading={saving}
+              disabled={!createForm.customerName.trim() || !createForm.description.trim() || !createForm.total || Number(createForm.total) <= 0 || !createForm.dueDate}
+              fullWidth>
+              Crear cuenta
+            </Button>
           </div>
         </div>
       </Modal>

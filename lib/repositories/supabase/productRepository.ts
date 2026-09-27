@@ -137,6 +137,7 @@ export const supabaseProductRepository = {
         description:          updated.description,
         status:               updated.visible ? 'active' : 'draft',
         featured:             updated.featured,
+        featured_order:       updated.featuredOrder ?? null,
         is_new:               updated.isNew,
         inventory_configured: updated.inventoryConfigured,
         tags:                 updated.tags,
