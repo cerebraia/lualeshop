@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Rocket,
   LogOut,
+  Landmark,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: '/admin/pedidos', label: 'Pedidos', icon: ClipboardList },
   { href: '/admin/clientes', label: 'Clientes', icon: Users },
   { href: '/admin/gastos', label: 'Gastos', icon: Receipt },
+  { href: '/admin/deudas', label: 'Deudas', icon: Landmark },
   { href: '/admin/finanzas', label: 'Finanzas', icon: BarChart3 },
   { href: '/admin/configuracion', label: 'Configuración', icon: Settings },
   { href: '/admin/puesta-en-marcha', label: 'Puesta en marcha', icon: Rocket },

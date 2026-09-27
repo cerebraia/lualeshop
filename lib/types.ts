@@ -5,6 +5,75 @@ export type MovementType = 'entry' | 'exit' | 'adjustment';
 export type ExpenseCategory = 'merchandise' | 'advertising' | 'delivery' | 'packaging' | 'other';
 export type PaymentMethod = 'cash' | 'transfer' | 'mobile_payment' | 'other';
 
+// ── Receivables (cuentas por cobrar) ─────────────────────────
+export type ReceivableStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+
+export interface ReceivablePayment {
+  id: string;
+  orderId: string;
+  amount: number;
+  date: string;
+  method: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  voidedAt?: string;
+  voidReason?: string;
+  createdAt: string;
+}
+
+export interface Receivable {
+  orderId: string;
+  orderNumber: string;
+  customerId: string;
+  customerName: string;
+  total: number;
+  paidAmount: number;
+  balance: number;
+  dueDate?: string;
+  orderStatus: OrderStatus;
+  status: ReceivableStatus;
+  notes?: string;
+  createdAt: string;
+  payments: ReceivablePayment[];
+}
+
+// ── Payables (cuentas por pagar) ─────────────────────────────
+export type PayableStatus = 'pending' | 'partial' | 'paid' | 'overdue' | 'cancelled';
+
+export interface PayablePayment {
+  id: string;
+  payableId: string;
+  amount: number;
+  paymentDate: string;
+  paymentMethod: PaymentMethod;
+  reference?: string;
+  notes?: string;
+  expenseId?: string;
+  voidedAt?: string;
+  voidReason?: string;
+  createdAt: string;
+}
+
+export interface Payable {
+  id: string;
+  supplierId?: string;
+  supplierName?: string;
+  creditorName: string;
+  description: string;
+  categoryId?: string;
+  categoryName?: string;
+  originalAmount: number;
+  paidAmount: number;
+  balance: number;
+  currency: string;
+  issueDate: string;
+  dueDate?: string;
+  status: PayableStatus;
+  notes?: string;
+  createdAt: string;
+  payments: PayablePayment[];
+}
+
 export interface Category {
   id: string;
   name: string;
@@ -51,7 +120,6 @@ export interface Product {
   tags: string[];
   createdAt: string;
   updatedAt: string;
-  // New fields
   catalogNumber?: number;
   purchaseOptions?: ProductPurchaseOption[];
   inventoryConfigured: boolean;
@@ -67,7 +135,7 @@ export interface WhatsAppIntent {
   variantSize?: string;
   quantity: number;
   price: number;
-  origin: string; // e.g. "product_page"
+  origin: string;
   date: string;
 }
 

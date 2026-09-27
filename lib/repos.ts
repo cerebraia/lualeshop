@@ -13,7 +13,7 @@
 'use client';
 
 import { getDataProvider } from '@/lib/data-provider';
-import type { Product, Category, Order, Expense, Customer, StoreSettings, InventoryMovement, MerchandiseEntry } from '@/lib/types';
+import type { Product, Category, Order, Expense, Customer, StoreSettings, InventoryMovement, MerchandiseEntry, Receivable, Payable, PaymentMethod } from '@/lib/types';
 import type { FinanceSummary } from '@/lib/repositories/supabase/financeRepository';
 
 function isSupabase() {
@@ -348,6 +348,72 @@ export const inventoryRepo = {
     }
     const { inventoryRepository } = await import('./repositories/inventoryRepository');
     inventoryRepository.createEntry(entry);
+  },
+};
+
+// ── Receivables (cuentas por cobrar) ─────────────────────────────────────────
+
+export const receivablesRepo = {
+  async findAll(): Promise<Receivable[]> {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.findAll();
+  },
+  async findById(orderId: string): Promise<Receivable | undefined> {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.findById(orderId);
+  },
+  async registerPayment(orderId: string, amount: number, method: PaymentMethod, date: string, reference?: string, notes?: string): Promise<void> {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.registerPayment(orderId, amount, method, date, reference, notes);
+  },
+  async voidPayment(paymentId: string, reason: string): Promise<void> {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.voidPayment(paymentId, reason);
+  },
+  async setDueDate(orderId: string, dueDate: string | null): Promise<void> {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.setDueDate(orderId, dueDate);
+  },
+  async getSummary() {
+    const { supabaseReceivablesRepository } = await import('./repositories/supabase/receivablesRepository');
+    return supabaseReceivablesRepository.getSummary();
+  },
+};
+
+// ── Payables (cuentas por pagar) ─────────────────────────────────────────────
+
+export const payablesRepo = {
+  async findAll(): Promise<Payable[]> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.findAll();
+  },
+  async findById(id: string): Promise<Payable | undefined> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.findById(id);
+  },
+  async create(p: { creditorName: string; description: string; originalAmount: number; issueDate: string; dueDate?: string; supplierId?: string; categoryId?: string; notes?: string }): Promise<string> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.create(p);
+  },
+  async registerPayment(payableId: string, amount: number, method: PaymentMethod, date: string, reference?: string, notes?: string): Promise<{ paymentId: string; expenseId: string }> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.registerPayment(payableId, amount, method, date, reference, notes);
+  },
+  async voidPayment(paymentId: string, reason: string): Promise<void> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.voidPayment(paymentId, reason);
+  },
+  async cancel(payableId: string, reason?: string): Promise<void> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.cancel(payableId, reason);
+  },
+  async update(payableId: string, fields: { creditorName?: string; description?: string; dueDate?: string | null; notes?: string }): Promise<void> {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.update(payableId, fields);
+  },
+  async getSummary() {
+    const { supabasePayablesRepository } = await import('./repositories/supabase/payablesRepository');
+    return supabasePayablesRepository.getSummary();
   },
 };
 
