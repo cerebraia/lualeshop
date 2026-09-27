@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Image from 'next/image';
 import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings, ExternalLink, Link2, Check } from 'lucide-react';
 import { productRepo, categoryRepo } from '@/lib/repos';
 import type { Product, Category, ProductVariant, InventoryStatus } from '@/lib/types';
@@ -61,6 +62,62 @@ const emptyForm = (): ProductFormData => ({
   variants: [{ id: generateId('var'), size: '', color: '', stock: 0 }],
   inventoryConfigured: false,
 });
+
+// ── Product thumbnail ─────────────────────────────────────────────────────────
+
+function ProductThumbnail({
+  product, size, className = '',
+}: {
+  product: Product;
+  size: 48 | 56 | 64 | 72;
+  className?: string;
+}) {
+  const src = product.productImages?.find((img) => img.isPrimary)?.publicUrl
+    ?? product.images[0]
+    ?? null;
+
+  const px = size;
+  const sizeClass: Record<number, string> = {
+    48: 'w-12 h-12',
+    56: 'w-14 h-14',
+    64: 'w-16 h-16',
+    72: 'w-[72px] h-[72px]',
+  };
+
+  const inner = src ? (
+    <Image
+      src={src}
+      alt={product.name}
+      width={px}
+      height={px}
+      className="object-cover w-full h-full"
+      sizes={`${px}px`}
+      loading="lazy"
+    />
+  ) : (
+    <>
+      <ImageIcon size={px >= 64 ? 18 : 14} className="text-brown-light/40" />
+      <span className="sr-only">Sin imagen</span>
+    </>
+  );
+
+  const base = `${sizeClass[px]} rounded-xl overflow-hidden bg-cream border border-rose/10 shrink-0 flex items-center justify-center ${className}`;
+
+  if (product.slug && src) {
+    return (
+      <a
+        href={`/producto/${product.slug}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        aria-label={`Ver ${product.name} en la tienda`}
+        className={`${base} hover:ring-2 hover:ring-rose/30 transition-all`}
+      >
+        {inner}
+      </a>
+    );
+  }
+  return <div className={base}>{inner}</div>;
+}
 
 export default function ProductosPage() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -373,7 +430,6 @@ export default function ProductosPage() {
               <thead className="bg-cream text-xs text-brown-light font-semibold uppercase tracking-wide">
                 <tr>
                   <th className="px-5 py-3 text-left">Producto</th>
-                  <th className="px-4 py-3 text-left">SKU</th>
                   <th className="px-4 py-3 text-left">Precio</th>
                   <th className="px-4 py-3 text-left">Estado</th>
                   <th className="px-4 py-3 text-left">Visible</th>
@@ -385,36 +441,24 @@ export default function ProductosPage() {
                   <tr key={p.id} className="border-t border-cream hover:bg-cream/50 transition-colors">
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-3">
-                        {p.images[0] ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.images[0]} alt={p.name} className="w-10 h-10 rounded-xl object-cover shrink-0 bg-cream" />
-                        ) : (
-                          <div className="w-10 h-10 rounded-xl bg-cream flex items-center justify-center shrink-0">
-                            <ImageIcon size={14} className="text-brown-light/50" />
-                          </div>
-                        )}
-                        <div>
-                          <p className="font-semibold text-brown text-sm">{p.name}</p>
-                          <p className="text-xs text-brown-light">{p.garmentType}</p>
+                        <ProductThumbnail product={p} size={48} />
+                        <div className="min-w-0">
+                          <p className="font-semibold text-brown text-sm leading-tight truncate max-w-[200px]">{p.name}</p>
+                          <p className="text-xs text-brown-light font-mono">{p.sku}</p>
+                          {p.garmentType && <p className="text-xs text-brown-light/70">{p.garmentType}</p>}
                         </div>
                         {p.featured && (
-                          <span title={`Destacado #${p.featuredOrder ?? '?'}`} className="text-yellow-500 text-xs font-bold">
+                          <span title={`Destacado #${p.featuredOrder ?? '?'}`} className="text-yellow-500 text-xs font-bold shrink-0">
                             ★{p.featuredOrder != null ? p.featuredOrder : ''}
                           </span>
                         )}
-                        {p.images.length === 0 && (
-                          <span title="Sin imagen" className="text-amber-400">
-                            <ImageIcon size={12} />
-                          </span>
-                        )}
                         {!p.inventoryConfigured && (
-                          <span title="Inventario pendiente" className="text-purple-400">
+                          <span title="Inventario pendiente" className="text-purple-400 shrink-0">
                             <Settings size={12} />
                           </span>
                         )}
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-xs text-brown-light">{p.sku}</td>
                     <td className="px-4 py-3.5 font-bold text-brown">{formatPrice(p.price)}</td>
                     <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
                     <td className="px-4 py-3.5">
@@ -473,31 +517,65 @@ export default function ProductosPage() {
           {/* Mobile cards */}
           <div className="md:hidden space-y-3">
             {filtered.map((p) => (
-              <div key={p.id} className="bg-white rounded-2xl p-4 shadow-sm border border-rose/10">
-                <div className="flex justify-between items-start gap-2 mb-2">
-                  <div>
-                    <p className="font-bold text-brown text-sm">{p.name}</p>
-                    <p className="text-xs text-brown-light font-mono">{p.sku} · {p.garmentType}</p>
+              <div key={p.id} className="bg-white rounded-2xl p-3 shadow-sm border border-rose/10">
+                {/* Top row: thumbnail + info + status */}
+                <div className="flex items-start gap-3">
+                  <ProductThumbnail product={p} size={72} className="mt-0.5" />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-start justify-between gap-2 mb-1">
+                      <p className="font-bold text-brown text-sm leading-tight line-clamp-2">{p.name}</p>
+                      <StatusBadge status={p.status} />
+                    </div>
+                    <p className="text-xs text-brown-light font-mono mb-0.5">{p.sku}</p>
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-brown text-sm">{formatPrice(p.price)}</span>
+                      {p.featured && (
+                        <span title={`Destacado #${p.featuredOrder ?? '?'}`} className="text-yellow-500 text-xs font-bold">
+                          ★{p.featuredOrder != null ? p.featuredOrder : ''}
+                        </span>
+                      )}
+                      {!p.inventoryConfigured && <span title="Inventario pendiente"><Settings size={11} className="text-purple-400" /></span>}
+                    </div>
                   </div>
-                  <StatusBadge status={p.status} />
                 </div>
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-brown">{formatPrice(p.price)}</span>
-                    {p.images.length === 0 && <ImageIcon size={12} className="text-amber-400" />}
-                    {!p.inventoryConfigured && <Settings size={12} className="text-purple-400" />}
-                  </div>
-                  <div className="flex gap-2">
-                    {p.slug && (
-                      <a href={`/producto/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label={`Ver ${p.name} en tienda`} className="p-1.5 rounded-xl hover:bg-blue-50 text-brown-light">
+
+                {/* Actions row */}
+                <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-cream">
+                  <div className="flex gap-1.5">
+                    {p.slug ? (
+                      <a href={`/producto/${p.slug}`} target="_blank" rel="noopener noreferrer"
+                        aria-label={`Ver ${p.name} en la tienda`}
+                        className="p-2 rounded-xl hover:bg-blue-50 text-brown-light min-h-[36px] min-w-[36px] flex items-center justify-center"
+                      >
                         <ExternalLink size={14} />
                       </a>
-                    )}
-                    <button onClick={() => toggleVisible(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light">{p.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                    <button onClick={() => openEdit(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light"><Edit2 size={14} /></button>
-                    <button onClick={() => duplicate(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light"><Copy size={14} /></button>
-                    <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-xl hover:bg-red-50 text-red-400"><Trash2 size={14} /></button>
+                    ) : null}
+                    <button onClick={() => toggleVisible(p)}
+                      aria-label={p.visible ? 'Ocultar producto' : 'Publicar producto'}
+                      className="p-2 rounded-xl hover:bg-cream text-brown-light min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    >
+                      {p.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                    </button>
+                    <button onClick={() => openEdit(p)} aria-label="Editar producto"
+                      className="p-2 rounded-xl hover:bg-cream text-brown-light min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    >
+                      <Edit2 size={14} />
+                    </button>
+                    <button onClick={() => duplicate(p)} aria-label="Duplicar producto"
+                      className="p-2 rounded-xl hover:bg-cream text-brown-light min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button onClick={() => setDeleteId(p.id)} aria-label="Eliminar producto"
+                      className="p-2 rounded-xl hover:bg-red-50 text-red-400 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    >
+                      <Trash2 size={14} />
+                    </button>
                   </div>
+                  {/* Visible status indicator */}
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${p.visible ? 'bg-green-50 text-green-700' : 'bg-cream text-brown-light'}`}>
+                    {p.visible ? 'Visible' : 'Oculto'}
+                  </span>
                 </div>
               </div>
             ))}
