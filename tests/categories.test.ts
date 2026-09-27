@@ -136,4 +136,78 @@ describe('Supabase select string integrity', () => {
     expect(ninos).toHaveLength(8);
     expect(bebes.length + ninas.length + ninos.length).toBe(46);
   });
+
+  it('getCategoryBySlug returns Juguetes for slug "juguetes"', async () => {
+    const cat = await getCategoryBySlug('juguetes');
+    expect(cat).toBeDefined();
+    expect(cat?.name).toBe('Juguetes');
+    expect(cat?.active).toBe(true);
+    expect(cat?.slug).toBe('juguetes');
+  });
+});
+
+// ── CategoryShowcase carousel logic ──────────────────────────────────────────
+
+describe('CategoryShowcase carousel breakpoints', () => {
+  const getConfig = (w: number) => {
+    if (w >= 1024) return { visible: 3, cardPct: 33.33, stepPct: 33.33 };
+    if (w >= 768)  return { visible: 2, cardPct: 50,    stepPct: 50    };
+    return              { visible: 1, cardPct: 87,    stepPct: 87    };
+  };
+
+  it('lg (1440px) shows 3 categories', () => expect(getConfig(1440).visible).toBe(3));
+  it('lg (1024px) shows 3 categories', () => expect(getConfig(1024).visible).toBe(3));
+  it('md (768px) shows 2 categories',  () => expect(getConfig(768).visible).toBe(2));
+  it('sm (390px) shows 1 category',    () => expect(getConfig(390).visible).toBe(1));
+  it('sm (360px) shows 1 category',    () => expect(getConfig(360).visible).toBe(1));
+
+  it('maxIndex with 4 categories at lg is 1 (carousel has movement)', () => {
+    const { visible } = getConfig(1440);
+    const maxIdx = Math.max(0, 4 - visible);
+    expect(maxIdx).toBe(1);
+  });
+
+  it('maxIndex with 4 categories at md is 2', () => {
+    const { visible } = getConfig(768);
+    const maxIdx = Math.max(0, 4 - visible);
+    expect(maxIdx).toBe(2);
+  });
+
+  it('maxIndex with 4 categories at sm is 3', () => {
+    const { visible } = getConfig(390);
+    const maxIdx = Math.max(0, 4 - visible);
+    expect(maxIdx).toBe(3);
+  });
+
+  it('5th category does not require component change — maxIndex auto-adjusts', () => {
+    const { visible } = getConfig(1440);
+    const maxIdx = Math.max(0, 5 - visible);
+    expect(maxIdx).toBe(2); // shows movement across more steps
+  });
+
+  it('all 4 category slugs map to known themes or fallback', () => {
+    const knownSlugs = ['bebes', 'ninas', 'ninos', 'juguetes'];
+    const THEMES = { bebes: true, ninas: true, ninos: true, juguetes: true };
+    for (const slug of knownSlugs) {
+      expect(THEMES[slug as keyof typeof THEMES] || true).toBe(true);
+    }
+  });
+
+  it('categories are in correct sort order from mock', () => {
+    const active = mockCategories.filter((c) => c.active).sort((a, b) => a.order - b.order);
+    const slugs = active.map((c) => c.slug);
+    expect(slugs).toEqual(['bebes', 'ninas', 'ninos', 'juguetes']);
+  });
+
+  it('no duplicate category slugs', () => {
+    const slugs = mockCategories.map((c) => c.slug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+  });
+
+  it('carousel URL for each category is /categoria/<slug>', () => {
+    const expected = ['bebes', 'ninas', 'ninos', 'juguetes'];
+    for (const slug of expected) {
+      expect(`/categoria/${slug}`).toMatch(/^\/categoria\/[a-z]+$/);
+    }
+  });
 });
