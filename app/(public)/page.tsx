@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
-import { getFeaturedProducts, getNewArrivals, getCategories, getVisibleProducts } from '@/lib/data/catalog';
+import { getFeaturedProducts, getNewArrivals, getCategories, getVisibleProducts, getProductsByCategorySlug } from '@/lib/data/catalog';
 import { HeroSection } from '@/components/home/HeroSection';
 import { CategoryShowcase } from '@/components/home/CategoryShowcase';
 import { FeaturedProducts } from '@/components/home/FeaturedProducts';
+import { ToysSection } from '@/components/home/ToysSection';
 import { BrandStory } from '@/components/home/BrandStory';
 import { NewArrivals } from '@/components/home/NewArrivals';
 import { BenefitsStrip } from '@/components/home/BenefitsStrip';
@@ -27,11 +28,12 @@ export const metadata: Metadata = {
 };
 
 export default async function HomePage() {
-  const [featuredProducts, newArrivals, categories, visibleProducts] = await Promise.all([
+  const [featuredProducts, newArrivals, categories, visibleProducts, toyProducts] = await Promise.all([
     getFeaturedProducts(16),
     getNewArrivals(4),
     getCategories(),
     getVisibleProducts(),
+    getProductsByCategorySlug('juguetes', 8).catch(() => []),
   ]);
 
   const categoriesWithCount = categories.map((c) => ({
@@ -54,6 +56,7 @@ export default async function HomePage() {
       <HeroSection products={heroProducts} />
       <CategoryShowcase categories={categoriesWithCount} />
       <FeaturedProducts products={featuredProducts} />
+      {toyProducts.length > 0 && <ToysSection products={toyProducts} />}
       <BrandStory />
       <NewArrivals products={newArrivals} />
       <BenefitsStrip />

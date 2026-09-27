@@ -23,6 +23,7 @@ const NAV = [
   { href: '/categoria/bebes', label: 'Bebés' },
   { href: '/categoria/ninas', label: 'Niñas' },
   { href: '/categoria/ninos', label: 'Niños' },
+  { href: '/categoria/juguetes', label: 'Juguetes' },
   { href: '/nuestra-historia', label: 'Nuestra historia' },
   { href: '/preguntas-frecuentes', label: 'Preguntas' },
 ];

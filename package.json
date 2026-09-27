@@ -14,7 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "audit:catalog": "npx tsx scripts/audit-catalog.ts"
+    "audit:catalog": "npx tsx scripts/audit-catalog.ts",
+    "import:toys": "npx tsx --env-file=.env.local scripts/import-toys-catalog.ts"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

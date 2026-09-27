@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings, ExternalLink, Link2, Check } from 'lucide-react';
 import { productRepo, categoryRepo } from '@/lib/repos';
 import type { Product, Category, ProductVariant, InventoryStatus } from '@/lib/types';
 import { formatPrice, generateId, slugify } from '@/lib/utils';
@@ -77,6 +77,15 @@ export default function ProductosPage() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
+
+  function copyLink(slug: string) {
+    const url = `${window.location.origin}/producto/${slug}`;
+    navigator.clipboard.writeText(url).then(() => {
+      setCopiedSlug(slug);
+      setTimeout(() => setCopiedSlug(null), 2000);
+    });
+  }
 
   async function load() {
     try {
@@ -419,6 +428,31 @@ export default function ProductosPage() {
                     </td>
                     <td className="px-4 py-3.5">
                       <div className="flex items-center justify-end gap-1">
+                        {p.slug ? (
+                          <a
+                            href={`/producto/${p.slug}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            aria-label={`Ver ${p.name} en la tienda`}
+                            className="p-1.5 rounded-xl hover:bg-blue-50 text-brown-light hover:text-blue-pastel transition-colors"
+                            title="Ver en tienda"
+                          >
+                            <ExternalLink size={15} />
+                          </a>
+                        ) : (
+                          <span className="p-1.5 rounded-xl text-brown-light/30 cursor-not-allowed" title="Sin slug — guarda el producto primero">
+                            <ExternalLink size={15} />
+                          </span>
+                        )}
+                        <button
+                          onClick={() => p.slug && copyLink(p.slug)}
+                          disabled={!p.slug}
+                          aria-label={`Copiar enlace de ${p.name}`}
+                          className={`p-1.5 rounded-xl transition-colors ${p.slug ? 'hover:bg-cream text-brown-light hover:text-brown' : 'text-brown-light/30 cursor-not-allowed'}`}
+                          title={copiedSlug === p.slug ? 'Enlace copiado' : 'Copiar enlace'}
+                        >
+                          {copiedSlug === p.slug ? <Check size={15} className="text-green-600" /> : <Link2 size={15} />}
+                        </button>
                         <button onClick={() => openEdit(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light hover:text-rose transition-colors" title="Editar">
                           <Edit2 size={15} />
                         </button>
@@ -454,6 +488,11 @@ export default function ProductosPage() {
                     {!p.inventoryConfigured && <Settings size={12} className="text-purple-400" />}
                   </div>
                   <div className="flex gap-2">
+                    {p.slug && (
+                      <a href={`/producto/${p.slug}`} target="_blank" rel="noopener noreferrer" aria-label={`Ver ${p.name} en tienda`} className="p-1.5 rounded-xl hover:bg-blue-50 text-brown-light">
+                        <ExternalLink size={14} />
+                      </a>
+                    )}
                     <button onClick={() => toggleVisible(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light">{p.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
                     <button onClick={() => openEdit(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light"><Edit2 size={14} /></button>
                     <button onClick={() => duplicate(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light"><Copy size={14} /></button>
@@ -474,6 +513,30 @@ export default function ProductosPage() {
         size="xl"
       >
         <div className="space-y-4">
+          {/* Quick links — only for saved products */}
+          {modal === 'edit' && editingId && (() => {
+            const prod = products.find((p) => p.id === editingId);
+            return prod?.slug ? (
+              <div className="flex gap-2 pb-1">
+                <a
+                  href={`/producto/${prod.slug}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={`Ver ${prod.name} en la tienda`}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-pastel hover:text-blue-pastel/80 border border-blue-pastel/30 hover:border-blue-pastel/60 px-3 py-1.5 rounded-xl transition-all"
+                >
+                  <ExternalLink size={13} /> Ver en tienda
+                </a>
+                <button
+                  onClick={() => prod.slug && copyLink(prod.slug)}
+                  aria-label={`Copiar enlace de ${prod.name}`}
+                  className="inline-flex items-center gap-1.5 text-xs font-semibold text-brown-light hover:text-brown border border-brown/20 hover:border-brown/40 px-3 py-1.5 rounded-xl transition-all"
+                >
+                  {copiedSlug === prod.slug ? <><Check size={13} className="text-green-600" /> Enlace copiado</> : <><Link2 size={13} /> Copiar enlace</>}
+                </button>
+              </div>
+            ) : null;
+          })()}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <Input label="Nombre *" value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} error={errors.name} />
             <Input label="SKU *" value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} error={errors.sku} />

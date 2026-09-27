@@ -52,6 +52,7 @@ export function Footer() {
                 ['/categoria/bebes', 'Bebés'],
                 ['/categoria/ninas', 'Niñas'],
                 ['/categoria/ninos', 'Niños'],
+                ['/categoria/juguetes', 'Juguetes'],
               ].map(([href, label]) => (
                 <li key={href}>
                   <Link href={href} className="hover:text-rose transition-colors">

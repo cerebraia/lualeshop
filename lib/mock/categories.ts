@@ -28,4 +28,13 @@ export const mockCategories: Category[] = [
     active: true,
     createdAt: '2024-01-01T00:00:00Z',
   },
+  {
+    id: 'cat-juguetes',
+    name: 'Juguetes',
+    slug: 'juguetes',
+    description: 'Juguetes educativos para imaginar y aprender',
+    order: 4,
+    active: true,
+    createdAt: '2024-01-01T00:00:00Z',
+  },
 ];

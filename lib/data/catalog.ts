@@ -148,6 +148,38 @@ export async function getNewArrivals(limit = 4): Promise<Product[]> {
     .slice(0, limit);
 }
 
+export async function getProductsByCategorySlug(slug: string, limit = 8): Promise<Product[]> {
+  if (getDataProvider() === 'supabase') {
+    const [supabase, { mapProduct }] = await Promise.all([getSupabase(), getMapped()]);
+    const { data: cat } = await supabase
+      .from('categories')
+      .select('id')
+      .eq('slug', slug)
+      .eq('active', true)
+      .single();
+    if (!cat) return [];
+    const { data: links } = await supabase
+      .from('product_categories')
+      .select('product_id')
+      .eq('category_id', cat.id);
+    const ids = (links ?? []).map((r: { product_id: string }) => r.product_id);
+    if (ids.length === 0) return [];
+    const { data, error } = await supabase
+      .from('products')
+      .select(PRODUCT_SELECT)
+      .eq('status', 'active')
+      .in('id', ids)
+      .limit(limit);
+    if (error) throw new Error(`[Catalog] ${error.message}`);
+    return (data ?? []).map(mapProduct);
+  }
+  const cat = mockCategories.find((c) => c.slug === slug && c.active);
+  if (!cat) return [];
+  return mockProducts
+    .filter((p) => p.visible && p.categoryIds.includes(cat.id))
+    .slice(0, limit);
+}
+
 export async function getCategories(): Promise<Category[]> {
   if (getDataProvider() === 'supabase') {
     const [supabase, { mapCategory }] = await Promise.all([getSupabase(), getMapped()]);

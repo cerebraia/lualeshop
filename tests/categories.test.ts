@@ -117,11 +117,11 @@ describe('Supabase select string integrity', () => {
     expect(hasDuplicate, 'product_categories must not appear twice in any select').toBe(false);
   });
 
-  it('mockCategories has exactly 3 active categories', () => {
+  it('mockCategories has exactly 4 active categories (including juguetes)', () => {
     const active = mockCategories.filter((c) => c.active);
-    expect(active).toHaveLength(3);
+    expect(active).toHaveLength(4);
     const slugs = active.map((c) => c.slug).sort();
-    expect(slugs).toEqual(['bebes', 'ninas', 'ninos']);
+    expect(slugs).toEqual(['bebes', 'juguetes', 'ninas', 'ninos']);
   });
 
   it('mock data total: 31 + 7 + 8 = 46', () => {
