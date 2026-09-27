@@ -9,16 +9,22 @@ import { MigrationRunner } from '@/components/MigrationRunner';
 /**
  * Admin layout — guards all /admin/* routes.
  *
- * mock mode:     access allowed, demo banner shown inside each page.
- * supabase mode: validates session + active profile via Supabase Auth.
- *                Middleware handles the initial redirect; this layout
- *                adds a second check for session expiry during the session.
+ * mock mode:     access allowed, demo banner shown.
+ * supabase mode: two-phase auth check to avoid an infinite spinner:
  *
- * The login page (/admin/login) is rendered directly without the auth
- * check to avoid an infinite spinner: the middleware already redirects
- * unauthenticated users to /admin/login, and running the check there
- * too would call router.replace('/admin/login') while already on that
- * page, preventing authChecked from ever becoming true.
+ *   Phase 1 (fast, synchronous-like): getSession() reads the JWT from
+ *     the local cookie. No network call. Near-instant. If no session →
+ *     redirect to login. If session exists → show dashboard immediately.
+ *
+ *   Phase 2 (background): getUser() validates the token with the Supabase
+ *     server and checks the profile role. If the token is expired or the
+ *     profile is inactive → sign out and redirect to login. This runs
+ *     after the dashboard is already visible, so no spinner delay.
+ *
+ * Login page bypass: /admin/login renders children directly without any
+ *   auth check. Running the check there caused an infinite spinner because
+ *   the "not logged in → redirect to /admin/login" path called router.replace
+ *   on the page we were already on, and authChecked never became true.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -30,8 +36,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isLoginPage = pathname === '/admin/login';
 
   useEffect(() => {
-    // Mock mode or login page: no auth check needed.
-    // The login page is handled by the middleware + its own form logic.
+    // Mock mode or login page: bypass auth check entirely.
     if (provider !== 'supabase' || isLoginPage) {
       setAuthChecked(true);
       return;
@@ -40,44 +45,60 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     let cancelled = false;
 
     (async () => {
-      let redirectTo = '';
-
       try {
         const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
         const supabase = getSupabaseBrowserClient();
-        const { data: { user } } = await supabase.auth.getUser();
+
+        // ── Phase 1: fast local session check (no network) ──────────────
+        // getSession() reads the JWT from memory/cookie without a server
+        // round-trip. Use it to make the UI decision immediately.
+        const { data: { session } } = await supabase.auth.getSession();
 
         if (cancelled) return;
 
-        if (!user) {
-          redirectTo = `/admin/login?next=${encodeURIComponent(pathname)}`;
-        } else {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('active, role')
-            .eq('id', user.id)
-            .single();
-
-          if (cancelled) return;
-
-          if (!profile?.active || !['admin', 'owner'].includes(profile.role)) {
-            await supabase.auth.signOut();
-            redirectTo = '/admin/login';
-          }
+        if (!session?.user) {
+          // No local session at all → go to login.
+          router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
+          return;
         }
-      } catch {
-        redirectTo = '/admin/login';
-      }
 
-      if (cancelled) return;
-
-      if (redirectTo) {
-        router.replace(redirectTo);
-        // Do not set authChecked — the spinner stays while navigation happens.
-        // If navigation is unexpectedly slow, the user still sees a loading state
-        // rather than a flash of protected content.
-      } else {
+        // Session looks valid locally → show the dashboard right away.
         setAuthChecked(true);
+
+        // ── Phase 2: background validation (network) ─────────────────────
+        // Validate the token with Supabase server and check profile role.
+        // This happens after the dashboard is already rendered, so there
+        // is no visible spinner delay.
+        const { data: { user }, error: userErr } = await supabase.auth.getUser();
+
+        if (cancelled) return;
+
+        if (userErr || !user) {
+          // Token was invalid or expired; undo the optimistic render.
+          setAuthChecked(false);
+          router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
+          return;
+        }
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('active, role')
+          .eq('id', user.id)
+          .single();
+
+        if (cancelled) return;
+
+        if (!profile?.active || !['admin', 'owner'].includes(profile.role)) {
+          setAuthChecked(false);
+          await supabase.auth.signOut();
+          router.replace('/admin/login');
+        }
+        // If profile is valid, the dashboard is already showing — nothing to do.
+      } catch {
+        if (!cancelled) {
+          setAuthChecked(false);
+          router.replace('/admin/login');
+        }
       }
     })();
 
@@ -85,12 +106,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   }, [provider, isLoginPage, pathname, router]);
 
   // Login page: render without sidebar or auth wrapper.
-  // (The layout still wraps it in the Next.js tree, but we pass straight through.)
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  // Show spinner while auth is being verified in supabase mode.
+  // Show spinner only while the fast local session check is running.
+  // Once getSession() resolves (< 50ms), this disappears.
   if (provider === 'supabase' && !authChecked) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
