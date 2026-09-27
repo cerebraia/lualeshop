@@ -3,7 +3,7 @@ import { randomUUID } from 'crypto';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10 MB
+const MAX_FILE_SIZE = 8 * 1024 * 1024; // 8 MB
 const MAX_IMAGES_PER_PRODUCT = 8;
 const ACCEPTED_MIME = new Set(['image/jpeg', 'image/png', 'image/webp']);
 // Magic bytes: JPEG=FFD8FF, PNG=89504E47, WebP=52494646????57454250
@@ -108,7 +108,7 @@ export async function POST(
 
   // 7. Size check
   if (file.size > MAX_FILE_SIZE) {
-    return NextResponse.json({ error: 'File exceeds 10 MB limit' }, { status: 400 });
+    return NextResponse.json({ error: 'File exceeds 8 MB limit' }, { status: 400 });
   }
 
   // 8. Read buffer and validate real MIME
@@ -155,16 +155,8 @@ export async function POST(
   }
 
   // 12. Determine position and primary status
-  const { data: existingImages } = await supabase
-    .from('product_images')
-    .select('id, is_primary')
-    .eq('product_id', productId)
-    .order('position', { ascending: false })
-    .limit(1);
-  const nextPosition = existingImages && existingImages.length > 0
-    ? ((existingImages[0] as { id: string }).id ? (count ?? 0) : 0)
-    : 0;
-  const isPrimary = (count ?? 0) === 0; // first image becomes primary
+  const nextPosition = count ?? 0; // 0-indexed: existing count = next slot
+  const isPrimary = nextPosition === 0; // first image becomes primary
 
   // 13. Create metadata record
   const altText = formData.get('alt_text') as string | null;

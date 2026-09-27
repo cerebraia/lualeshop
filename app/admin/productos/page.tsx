@@ -646,11 +646,26 @@ export default function ProductosPage() {
                 initialImages={(() => {
                   const prod = products.find((p) => p.id === editingId);
                   if (!prod) return [];
+                  // Use real DB metadata when available (Supabase mode)
+                  if (prod.productImages && prod.productImages.length > 0) {
+                    return prod.productImages.map((img) => ({
+                      id:          img.id,
+                      src:         img.publicUrl,
+                      storagePath: img.storagePath,
+                      altText:     img.altText || `${prod.name} de Luale Kids Shop`,
+                      position:    img.position,
+                      isPrimary:   img.isPrimary,
+                      width:       img.width,
+                      height:      img.height,
+                      fileSize:    img.fileSize,
+                    } satisfies ManagedImage));
+                  }
+                  // Fallback: mock mode — no real IDs, local paths
                   return prod.images.map((src, i) => ({
-                    id: `img-${editingId}-${i}`,
+                    id:        `img-${editingId}-${i}`,
                     src,
-                    altText: `${prod.name} de Luale Kids Shop`,
-                    position: i,
+                    altText:   `${prod.name} de Luale Kids Shop`,
+                    position:  i,
                     isPrimary: i === 0,
                   } satisfies ManagedImage));
                 })()}

@@ -103,6 +103,18 @@ export interface ProductPurchaseOption {
   quantityIncluded?: number; // e.g. 5 for "cinco pares"
 }
 
+export interface ProductImageRecord {
+  id: string;
+  storagePath: string;
+  publicUrl: string;
+  altText: string;
+  position: number;
+  isPrimary: boolean;
+  width?: number;
+  height?: number;
+  fileSize?: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -114,6 +126,7 @@ export interface Product {
   categoryIds: string[];
   variants: ProductVariant[];
   images: string[];
+  productImages?: ProductImageRecord[];
   status: InventoryStatus;
   featured: boolean;
   featuredOrder: number | null;

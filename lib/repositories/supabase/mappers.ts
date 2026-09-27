@@ -12,6 +12,7 @@ type DbRow = Record<string, any>;
 import type {
   Category,
   Product,
+  ProductImageRecord,
   ProductVariant,
   ProductPurchaseOption,
   Customer,
@@ -23,6 +24,16 @@ import type {
   MerchandiseEntry,
   MerchandiseEntryItem,
 } from '@/lib/types';
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+
+function toPublicUrl(storagePath: string): string {
+  if (!storagePath) return '';
+  if (storagePath.startsWith('/') || storagePath.startsWith('http')) {
+    return storagePath;
+  }
+  return `${SUPABASE_URL}/storage/v1/object/public/product-images/${storagePath}`;
+}
 
 // ── Categories ────────────────────────────────────────────────
 
@@ -43,9 +54,24 @@ export function mapCategory(row: DbRow): Category {
 export function mapProduct(row: DbRow): Product {
   const variants: ProductVariant[] = (row.product_variants ?? []).map(mapVariant);
   const purchaseOptions: ProductPurchaseOption[] = (row.product_purchase_options ?? []).map(mapPurchaseOption);
-  const images: string[] = (row.product_images ?? [])
-    .sort((a: DbRow, b: DbRow) => a.position - b.position)
-    .map((img: DbRow) => img.storage_path);
+
+  const sortedRawImages: DbRow[] = (row.product_images ?? [])
+    .slice()
+    .sort((a: DbRow, b: DbRow) => (a.position ?? 0) - (b.position ?? 0));
+
+  const productImages: ProductImageRecord[] = sortedRawImages.map((img: DbRow) => ({
+    id:          String(img.id),
+    storagePath: String(img.storage_path ?? ''),
+    publicUrl:   toPublicUrl(String(img.storage_path ?? '')),
+    altText:     String(img.alt_text ?? ''),
+    position:    Number(img.position ?? 0),
+    isPrimary:   Boolean(img.is_primary),
+    width:       img.width ?? undefined,
+    height:      img.height ?? undefined,
+    fileSize:    img.file_size ?? undefined,
+  }));
+
+  const images: string[] = productImages.map((img) => img.publicUrl);
 
   const categoryIds: string[] = (row.product_categories ?? []).map(
     (pc: DbRow) => pc.category_id
@@ -62,6 +88,7 @@ export function mapProduct(row: DbRow): Product {
     categoryIds,
     variants,
     images,
+    productImages,
     status:               mapAvailability(row.manual_availability),
     featured:             row.featured,
     featuredOrder:        row.featured_order ?? null,

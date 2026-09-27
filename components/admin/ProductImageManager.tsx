@@ -55,7 +55,7 @@ interface Props {
 }
 
 const MAX_IMAGES = 8;
-const MAX_FILE_SIZE = 10 * 1024 * 1024;
+const MAX_FILE_SIZE = 8 * 1024 * 1024;
 const ACCEPTED_MIME = ['image/jpeg', 'image/png', 'image/webp'];
 const ACCEPTED_EXT = ['.jpg', '.jpeg', '.png', '.webp'];
 
@@ -175,7 +175,7 @@ export function ProductImageManager({
       return `Formato no aceptado: ${file.type}. Usa JPEG, PNG o WebP.`;
     }
     if (file.size > MAX_FILE_SIZE) {
-      return `El archivo supera los 10 MB (${formatBytes(file.size)}).`;
+      return `El archivo supera los 8 MB (${formatBytes(file.size)}).`;
     }
     return null;
   }
@@ -593,7 +593,7 @@ export function ProductImageManager({
               : `Límite alcanzado (${MAX_IMAGES} fotos)`}
           </p>
           <p className="text-xs text-brown-light mt-1">
-            JPEG, PNG, WebP · máx 10 MB · hasta {MAX_IMAGES - images.length} más
+            JPEG, PNG, WebP · máx 8 MB · hasta {MAX_IMAGES - images.length} más
           </p>
           <p className="text-xs text-brown-light/70 mt-2">
             Agrega hasta 8 fotografías del producto. Puedes arrastrarlas para cambiar el orden.
