@@ -4,27 +4,19 @@ import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Menu, X } from 'lucide-react';
 import { AdminSidebar } from '@/components/admin/AdminSidebar';
-import { MigrationRunner } from '@/components/MigrationRunner';
 
 /**
- * Admin layout — guards all /admin/* routes.
+ * Admin layout — guards all /admin/* routes via Supabase Auth.
  *
- * mock mode:     access allowed, demo banner shown.
- * supabase mode: two-phase auth check to avoid an infinite spinner:
+ * Two-phase auth check:
+ *   Phase 1 (fast, no network): getSession() reads the JWT from the local
+ *     cookie. No network call. If no session → redirect to login. If session
+ *     exists → show dashboard immediately, spinner disappears.
+ *   Phase 2 (background): getUser() + profile query validate the token with
+ *     Supabase server and check role. Runs after dashboard is already visible.
+ *     If token is expired or role is invalid → sign out and redirect to login.
  *
- *   Phase 1 (fast, synchronous-like): getSession() reads the JWT from
- *     the local cookie. No network call. Near-instant. If no session →
- *     redirect to login. If session exists → show dashboard immediately.
- *
- *   Phase 2 (background): getUser() validates the token with the Supabase
- *     server and checks the profile role. If the token is expired or the
- *     profile is inactive → sign out and redirect to login. This runs
- *     after the dashboard is already visible, so no spinner delay.
- *
- * Login page bypass: /admin/login renders children directly without any
- *   auth check. Running the check there caused an infinite spinner because
- *   the "not logged in → redirect to /admin/login" path called router.replace
- *   on the page we were already on, and authChecked never became true.
+ * Login page bypass: /admin/login renders children directly with no auth check.
  */
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -32,12 +24,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router = useRouter();
   const pathname = usePathname();
 
-  const provider = process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'mock';
   const isLoginPage = pathname === '/admin/login';
 
   useEffect(() => {
-    // Mock mode or login page: bypass auth check entirely.
-    if (provider !== 'supabase' || isLoginPage) {
+    if (isLoginPage) {
       setAuthChecked(true);
       return;
     }
@@ -49,32 +39,25 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
         const supabase = getSupabaseBrowserClient();
 
-        // ── Phase 1: fast local session check (no network) ──────────────
-        // getSession() reads the JWT from memory/cookie without a server
-        // round-trip. Use it to make the UI decision immediately.
+        // Phase 1: local session check — no network, near-instant
         const { data: { session } } = await supabase.auth.getSession();
 
         if (cancelled) return;
 
         if (!session?.user) {
-          // No local session at all → go to login.
           router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
           return;
         }
 
-        // Session looks valid locally → show the dashboard right away.
+        // Session looks valid locally → show dashboard right away
         setAuthChecked(true);
 
-        // ── Phase 2: background validation (network) ─────────────────────
-        // Validate the token with Supabase server and check profile role.
-        // This happens after the dashboard is already rendered, so there
-        // is no visible spinner delay.
+        // Phase 2: background server validation
         const { data: { user }, error: userErr } = await supabase.auth.getUser();
 
         if (cancelled) return;
 
         if (userErr || !user) {
-          // Token was invalid or expired; undo the optimistic render.
           setAuthChecked(false);
           router.replace(`/admin/login?next=${encodeURIComponent(pathname)}`);
           return;
@@ -93,7 +76,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           await supabase.auth.signOut();
           router.replace('/admin/login');
         }
-        // If profile is valid, the dashboard is already showing — nothing to do.
       } catch {
         if (!cancelled) {
           setAuthChecked(false);
@@ -103,16 +85,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     })();
 
     return () => { cancelled = true; };
-  }, [provider, isLoginPage, pathname, router]);
+  }, [isLoginPage, pathname, router]);
 
-  // Login page: render without sidebar or auth wrapper.
+  // Login page renders without sidebar or auth wrapper
   if (isLoginPage) {
     return <>{children}</>;
   }
 
-  // Show spinner only while the fast local session check is running.
-  // Once getSession() resolves (< 50ms), this disappears.
-  if (provider === 'supabase' && !authChecked) {
+  // Spinner only while local session check is running (< 50ms normally)
+  if (!authChecked) {
     return (
       <div className="min-h-screen bg-cream flex items-center justify-center">
         <div className="w-8 h-8 border-2 border-brown/20 border-t-brown rounded-full animate-spin" />
@@ -122,7 +103,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className="flex h-screen bg-cream overflow-hidden">
-      <MigrationRunner />
       {/* Desktop sidebar */}
       <aside className="hidden lg:flex w-60 bg-brown flex-col shrink-0">
         <AdminSidebar />

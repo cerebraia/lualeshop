@@ -1,15 +1,11 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Save, RotateCcw, Package, Tag } from 'lucide-react';
+import { Save, Package, Tag } from 'lucide-react';
 import { settingsRepo, productRepo, categoryRepo } from '@/lib/repos';
-import { productRepository } from '@/lib/repositories/productRepository';
-import { categoryRepository } from '@/lib/repositories/categoryRepository';
-import { settingsRepository } from '@/lib/repositories/settingsRepository';
 import type { StoreSettings } from '@/lib/types';
 import { Input, Textarea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
-import { Modal } from '@/components/ui/Modal';
 
 export default function ConfiguracionPage() {
   const [settings, setSettings] = useState<StoreSettings | null>(null);
@@ -17,7 +13,6 @@ export default function ConfiguracionPage() {
   const [saving, setSaving] = useState(false);
   const [productCount, setProductCount] = useState(0);
   const [categoryCount, setCategoryCount] = useState(0);
-  const [showRestoreModal, setShowRestoreModal] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -55,34 +50,6 @@ export default function ConfiguracionPage() {
     }
   }
 
-  async function handleReset() {
-    // reset() is a mock-only operation — use the underlying mock repo directly
-    settingsRepository.reset();
-    try {
-      setSettings(await settingsRepo.get());
-      setSaved(false);
-    } catch {
-      setError('Error al restablecer configuración.');
-    }
-  }
-
-  async function handleRestoreCatalog() {
-    // reset() is a mock-only operation — use the underlying mock repos directly
-    productRepository.reset();
-    categoryRepository.reset();
-    try {
-      const [prods, cats] = await Promise.all([
-        productRepo.findAll(),
-        categoryRepo.findAll(),
-      ]);
-      setProductCount(prods.length);
-      setCategoryCount(cats.length);
-    } catch {
-      setError('Error al restaurar catálogo.');
-    }
-    setShowRestoreModal(false);
-  }
-
   if (!settings) {
     return <div className="flex items-center justify-center py-20 text-brown-light">Cargando...</div>;
   }
@@ -99,14 +66,9 @@ export default function ConfiguracionPage() {
           <h1 className="text-2xl font-extrabold text-brown">Configuración</h1>
           <p className="text-brown-light text-sm">Datos generales de la tienda</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={handleReset}>
-            <RotateCcw size={14} /> Restablecer
-          </Button>
-          <Button onClick={handleSave} loading={saving} size="sm">
-            <Save size={14} /> {saved ? 'Guardado ✓' : 'Guardar'}
-          </Button>
-        </div>
+        <Button onClick={handleSave} loading={saving} size="sm">
+          <Save size={14} /> {saved ? 'Guardado ✓' : 'Guardar'}
+        </Button>
       </div>
 
       {saved && (
@@ -135,7 +97,7 @@ export default function ConfiguracionPage() {
             <Input label="WhatsApp (número técnico)" value={settings.whatsappLink} onChange={(e) => update('whatsappLink', e.target.value)} hint="584220162748 — sin + ni espacios" />
             <Input label="Instagram" value={settings.instagram} onChange={(e) => update('instagram', e.target.value)} />
             <Input label="Ubicación" value={settings.location} onChange={(e) => update('location', e.target.value)} />
-            <Input label="Dominio futuro" value={settings.domain} onChange={(e) => update('domain', e.target.value)} />
+            <Input label="Dominio" value={settings.domain} onChange={(e) => update('domain', e.target.value)} />
           </div>
         </section>
 
@@ -157,10 +119,10 @@ export default function ConfiguracionPage() {
           </div>
         </section>
 
-        {/* Catalog data */}
+        {/* Catalog info */}
         <section className="bg-white rounded-3xl p-5 shadow-sm border border-rose/10">
           <h2 className="font-bold text-brown mb-4">Datos del catálogo</h2>
-          <div className="flex items-center gap-6 mb-4">
+          <div className="flex items-center gap-6">
             <div className="flex items-center gap-2 text-sm text-brown">
               <Package size={15} className="text-rose" />
               <span><strong>{productCount}</strong> productos</span>
@@ -170,12 +132,6 @@ export default function ConfiguracionPage() {
               <span><strong>{categoryCount}</strong> categorías</span>
             </div>
           </div>
-          <p className="text-xs text-brown-light mb-4">
-            Restaurar el catálogo original reemplazará los productos y categorías actuales con los datos originales del sistema.
-          </p>
-          <Button variant="ghost" size="sm" onClick={() => setShowRestoreModal(true)}>
-            <RotateCcw size={14} /> Restaurar catálogo original
-          </Button>
         </section>
 
         <div className="text-right">
@@ -184,20 +140,6 @@ export default function ConfiguracionPage() {
           </Button>
         </div>
       </div>
-
-      {/* Restore catalog confirm modal */}
-      <Modal open={showRestoreModal} onClose={() => setShowRestoreModal(false)} title="Restaurar catálogo original" size="sm">
-        <p className="text-sm text-brown-light mb-2">
-          Esta acción restaurará los productos y categorías a su estado original.
-        </p>
-        <p className="text-sm text-red-500 font-medium mb-5">
-          Se perderán todos los cambios manuales realizados en productos y categorías.
-        </p>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => setShowRestoreModal(false)} fullWidth>Cancelar</Button>
-          <Button variant="danger" onClick={handleRestoreCatalog} fullWidth>Restaurar catálogo</Button>
-        </div>
-      </Modal>
     </div>
   );
 }

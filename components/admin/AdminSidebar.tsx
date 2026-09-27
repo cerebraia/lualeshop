@@ -40,13 +40,10 @@ interface AdminSidebarProps {
 export function AdminSidebar({ onClose }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const isMock = (process.env.NEXT_PUBLIC_DATA_PROVIDER ?? 'mock') !== 'supabase';
 
   async function handleLogout() {
-    if (!isMock) {
-      const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
-      await getSupabaseBrowserClient().auth.signOut();
-    }
+    const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
+    await getSupabaseBrowserClient().auth.signOut();
     router.push('/admin/login');
     router.refresh();
   }
@@ -65,14 +62,6 @@ export function AdminSidebar({ onClose }: AdminSidebarProps) {
           </div>
         </div>
       </div>
-
-      {/* Demo notice — only in mock mode */}
-      {isMock && (
-        <div className="mx-3 mt-3 bg-yellow-500/10 border border-yellow-500/30 rounded-xl px-3 py-2">
-          <p className="text-yellow-400 text-xs font-medium">Modo demostración</p>
-          <p className="text-yellow-400/70 text-xs">Datos locales / sin autenticación</p>
-        </div>
-      )}
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 overflow-y-auto">

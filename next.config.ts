@@ -72,6 +72,17 @@ const nextConfig: NextConfig = {
         source: '/(.*)',
         headers: securityHeaders,
       },
+      {
+        // Admin pages must never be shared across sessions or cached by proxies.
+        // private: only the browser may cache; no-store: don't cache at all.
+        source: '/admin/:path*',
+        headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
+      },
+      {
+        // Private API routes (image upload/delete require auth)
+        source: '/api/:path*',
+        headers: [{ key: 'Cache-Control', value: 'private, no-store' }],
+      },
     ];
   },
 

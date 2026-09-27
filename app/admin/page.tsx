@@ -12,7 +12,7 @@ import {
   Plus,
   ImageIcon,
   Settings,
-  Info,
+  RefreshCw,
 } from 'lucide-react';
 import { orderRepo, expenseRepo, productRepo } from '@/lib/repos';
 import type { Order, Expense, Product } from '@/lib/types';
@@ -42,14 +42,12 @@ function StatCard({
   icon,
   color,
   sub,
-  demo,
 }: {
   label: string;
   value: string;
   icon: React.ReactNode;
   color: string;
   sub?: string;
-  demo?: boolean;
 }) {
   return (
     <div className="bg-white rounded-3xl p-5 shadow-sm border border-rose/10">
@@ -57,11 +55,6 @@ function StatCard({
         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${color}`}>
           {icon}
         </div>
-        {demo && (
-          <span className="text-xs text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full font-medium">
-            demo
-          </span>
-        )}
       </div>
       <p className="text-2xl font-extrabold text-brown">{value}</p>
       <p className="text-xs text-brown-light font-medium mt-0.5">{label}</p>
@@ -75,23 +68,28 @@ export default function AdminDashboard() {
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    (async () => {
-      try {
-        const [ords, exps, prods] = await Promise.all([
-          orderRepo.findAll(),
-          expenseRepo.findAll(),
-          productRepo.findAll(),
-        ]);
-        setOrders(ords);
-        setExpenses(exps);
-        setProducts(prods);
-      } catch {
-        setError('Error al cargar datos.');
-      }
-    })();
-  }, []);
+  async function load() {
+    setError(null);
+    setLoading(true);
+    try {
+      const [ords, exps, prods] = await Promise.all([
+        orderRepo.findAll(),
+        expenseRepo.findAll(),
+        productRepo.findAll(),
+      ]);
+      setOrders(ords);
+      setExpenses(exps);
+      setProducts(prods);
+    } catch {
+      setError('No se pudo conectar con Supabase. Verifica tu conexión e intenta de nuevo.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => { load(); }, []);
 
   const paidOrders = orders.filter((o) => o.paymentStatus === 'paid');
   const totalRevenue = paidOrders.reduce((sum, o) => sum + o.total, 0);
@@ -110,32 +108,37 @@ export default function AdminDashboard() {
     0
   );
 
-  // New computed values
   const productsWithoutImage = products.filter((p) => p.images.length === 0);
   const inventoryPendingProducts = products.filter((p) => !p.inventoryConfigured);
-  const bebesCount = products.filter((p) => p.categoryIds.includes('cat-bebes')).length;
-  const ninasCount = products.filter((p) => p.categoryIds.includes('cat-ninas')).length;
-  const ninosCount = products.filter((p) => p.categoryIds.includes('cat-ninos')).length;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-20">
+        <div className="w-7 h-7 border-2 border-brown/20 border-t-brown rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 gap-4">
+        <p className="text-brown-light text-sm text-center max-w-sm">{error}</p>
+        <button
+          onClick={load}
+          className="flex items-center gap-2 bg-brown text-white text-sm font-semibold px-5 py-2.5 rounded-2xl hover:bg-brown/90 transition-all"
+        >
+          <RefreshCw size={15} />
+          Reintentar
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div>
       <div className="mb-6">
         <h1 className="text-2xl font-extrabold text-brown">Resumen</h1>
         <p className="text-brown-light text-sm">Vista general del negocio</p>
-      </div>
-
-      {error && (
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3 mb-6 text-sm">
-          {error}
-        </div>
-      )}
-
-      {/* Demo banner */}
-      <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 rounded-2xl px-4 py-3 mb-6 text-sm">
-        <Info size={16} className="shrink-0 mt-0.5 text-amber-600" />
-        <span>
-          <strong>Modo demostración.</strong> Los datos financieros provienen de pedidos de prueba y no reflejan ventas reales.
-        </span>
       </div>
 
       {/* Financial Stats */}
@@ -146,29 +149,24 @@ export default function AdminDashboard() {
           icon={<TrendingUp size={18} className="text-green-600" />}
           color="bg-green-50"
           sub={`${paidOrders.length} pedidos pagados`}
-          demo
         />
         <StatCard
           label="Gastos totales"
           value={formatPrice(totalExpenses)}
           icon={<TrendingDown size={18} className="text-red-500" />}
           color="bg-red-50"
-          demo
         />
         <StatCard
           label="Utilidad estimada"
           value={formatPrice(profit)}
           icon={<DollarSign size={18} className="text-rose" />}
           color="bg-rose/10"
-          demo
         />
         <StatCard
           label="Valor del inventario"
           value={formatPrice(inventoryValue)}
           icon={<Package size={18} className="text-blue-pastel" />}
           color="bg-blue-pastel/10"
-          sub="Dato de demostración"
-          demo
         />
       </div>
 
@@ -179,7 +177,6 @@ export default function AdminDashboard() {
           value={String(products.length)}
           icon={<Package size={18} className="text-brown" />}
           color="bg-cream"
-          sub={`Bebés: ${bebesCount} · Niñas: ${ninasCount} · Niños: ${ninosCount}`}
         />
         <StatCard
           label="Sin imagen"
@@ -196,12 +193,11 @@ export default function AdminDashboard() {
           sub="Sin stock configurado"
         />
         <StatCard
-          label="Pedidos recientes"
+          label="Pedidos"
           value={String(orders.length)}
           icon={<ShoppingBag size={18} className="text-rose" />}
           color="bg-rose/10"
           sub={`${paidOrders.length} pagados`}
-          demo
         />
       </div>
 

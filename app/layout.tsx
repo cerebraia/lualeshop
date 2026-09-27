@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import type React from 'react';
 import { Nunito } from 'next/font/google';
 import './globals.css';
 
@@ -73,7 +74,7 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: LayoutProps<'/'>) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className={`${nunito.variable} h-full`}>
       <body className="min-h-full flex flex-col antialiased">{children}</body>

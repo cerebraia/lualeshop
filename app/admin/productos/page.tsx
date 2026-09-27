@@ -1,9 +1,8 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, RotateCcw, ImageIcon, Settings } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings } from 'lucide-react';
 import { productRepo, categoryRepo } from '@/lib/repos';
-import { productRepository } from '@/lib/repositories/productRepository';
 import type { Product, Category, ProductVariant, InventoryStatus } from '@/lib/types';
 import { formatPrice, generateId, slugify } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -77,7 +76,6 @@ export default function ProductosPage() {
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData, string>>>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [showRestore, setShowRestore] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function load() {
@@ -253,13 +251,6 @@ export default function ProductosPage() {
     }
   }
 
-  function handleRestore() {
-    // reset() is a mock-only operation — use the underlying mock repo directly
-    productRepository.reset();
-    setShowRestore(false);
-    load();
-  }
-
   function addVariant() {
     setForm((f) => ({
       ...f,
@@ -293,9 +284,6 @@ export default function ProductosPage() {
           <p className="text-brown-light text-sm">{products.length} productos en total</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={() => setShowRestore(true)}>
-            <RotateCcw size={14} /> Restaurar catálogo
-          </Button>
           <Button onClick={openCreate} size="sm">
             <Plus size={16} /> Nuevo producto
           </Button>
@@ -659,7 +647,7 @@ export default function ProductosPage() {
                   const prod = products.find((p) => p.id === editingId);
                   if (!prod) return [];
                   return prod.images.map((src, i) => ({
-                    id: `mock-img-${editingId}-${i}`,
+                    id: `img-${editingId}-${i}`,
                     src,
                     altText: `${prod.name} de Luale Kids Shop`,
                     position: i,
@@ -689,17 +677,6 @@ export default function ProductosPage() {
         </div>
       </Modal>
 
-      {/* Restore catalog confirm */}
-      <Modal open={showRestore} onClose={() => setShowRestore(false)} title="Restaurar catálogo" size="sm">
-        <p className="text-sm text-brown-light mb-2">Esta acción restaurará el catálogo original de productos.</p>
-        <p className="text-sm text-red-500 font-medium mb-5">
-          Los cambios manuales que hayas hecho en los productos (precios, descripciones, etc.) se perderán.
-        </p>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => setShowRestore(false)} fullWidth>Cancelar</Button>
-          <Button variant="danger" onClick={handleRestore} fullWidth>Restaurar catálogo</Button>
-        </div>
-      </Modal>
     </div>
   );
 }
