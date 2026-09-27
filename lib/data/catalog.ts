@@ -17,6 +17,18 @@ const PRODUCT_SELECT = `
   product_categories (category_id)
 `;
 
+// For category-filtered queries the relation must use !inner (to exclude products
+// that do not belong to the category). Cannot append to PRODUCT_SELECT because
+// that already includes product_categories — PostgREST rejects duplicate relations
+// and returns a malformed response that crashes the Server Component (React #441).
+const PRODUCT_SELECT_INNER = `
+  *,
+  product_variants (*, inventory_levels (quantity_on_hand)),
+  product_purchase_options (*),
+  product_images (*),
+  product_categories!inner (category_id)
+`;
+
 async function getSupabase() {
   const { getSupabaseServerClient } = await import('@/lib/supabase/server');
   return getSupabaseServerClient();
@@ -71,11 +83,25 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
 export async function getProductsByCategory(categoryId: string): Promise<Product[]> {
   if (getDataProvider() === 'supabase') {
     const [supabase, { mapProduct }] = await Promise.all([getSupabase(), getMapped()]);
+
+    // Step 1: resolve product IDs for this category.
+    // Avoids embedding the filter inside a PostgREST join select, which generates
+    // invalid SQL ("aggregate functions are not allowed in FROM clause").
+    const { data: links, error: linkErr } = await supabase
+      .from('product_categories')
+      .select('product_id')
+      .eq('category_id', categoryId);
+    if (linkErr) throw new Error(`[Catalog] ${linkErr.message}`);
+
+    const productIds = (links ?? []).map((r: { product_id: string }) => r.product_id);
+    if (productIds.length === 0) return [];
+
+    // Step 2: fetch full product data for those IDs.
     const { data, error } = await supabase
       .from('products')
-      .select(`${PRODUCT_SELECT}, product_categories!inner (category_id)`)
+      .select(PRODUCT_SELECT)
       .eq('status', 'active')
-      .eq('product_categories.category_id', categoryId)
+      .in('id', productIds)
       .order('catalog_number');
     if (error) throw new Error(`[Catalog] ${error.message}`);
     return (data ?? []).map(mapProduct);
