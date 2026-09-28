@@ -94,6 +94,7 @@ export function mapProduct(row: DbRow): Product {
     featuredOrder:        row.featured_order ?? null,
     isNew:                row.is_new,
     visible:              row.status === 'active',
+    archivedAt:           row.archived_at ?? undefined,
     garmentType:          row.garment_type ?? '',
     tags:                 row.tags ?? [],
     createdAt:            row.created_at,

@@ -142,6 +142,7 @@ export interface Product {
   inventoryConfigured: boolean;
   lowStockThreshold?: number;
   sizeNote?: string;
+  archivedAt?: string;
 }
 
 export interface WhatsAppIntent {

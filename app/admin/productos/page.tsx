@@ -135,6 +135,9 @@ export default function ProductosPage() {
   const [form, setForm] = useState<ProductFormData>(emptyForm());
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData, string>>>({});
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteAction, setDeleteAction] = useState<'check' | 'confirm_delete' | 'confirm_archive' | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState('');
+  const [filterArchived, setFilterArchived] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
@@ -150,7 +153,9 @@ export default function ProductosPage() {
   async function load() {
     try {
       const [prods, cats] = await Promise.all([
-        productRepo.findAll(),
+        filterArchived
+          ? productRepo.findAllIncludingArchived()
+          : productRepo.findAll(),
         categoryRepo.findActive(),
       ]);
       setProducts(prods);
@@ -160,11 +165,14 @@ export default function ProductosPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [filterArchived]);  // eslint-disable-line react-hooks/exhaustive-deps
 
   const featuredCount = products.filter((p) => p.featured).length;
 
   const filtered = products.filter((p) => {
+    const isArchived = !!p.archivedAt;
+    if (filterArchived) return isArchived;               // show only archived
+    if (isArchived) return false;                        // hide archived from active list
     const matchesSearch =
       p.name.toLowerCase().includes(search.toLowerCase()) ||
       p.sku.toLowerCase().includes(search.toLowerCase());
@@ -341,14 +349,78 @@ export default function ProductosPage() {
     }
   }
 
-  async function handleDelete() {
-    if (!deleteId) return;
+  async function openDeleteModal(id: string) {
+    setDeleteId(id);
+    setDeleteAction('check');
+    setDeleteConfirmText('');
+    // Check order history to determine which action to offer
     try {
-      await productRepo.delete(deleteId);
-      setDeleteId(null);
-      await load();
+      const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
+      const { count } = await getSupabaseBrowserClient()
+        .from('order_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('product_id', id);
+      setDeleteAction((count ?? 0) > 0 ? 'confirm_archive' : 'confirm_delete');
     } catch {
-      setError('Error al eliminar producto.');
+      setDeleteAction('confirm_delete'); // assume deletable if check fails
+    }
+  }
+
+  async function handleConfirmDelete() {
+    if (!deleteId || deleteConfirmText !== 'ELIMINAR') return;
+    setSaving(true);
+    try {
+      const result = await productRepo.attemptDelete(deleteId);
+      if (result.action === 'requires_archive') {
+        setDeleteAction('confirm_archive');
+        return;
+      }
+      // Successfully deleted — clean up Storage
+      if (result.storagePaths && result.storagePaths.length > 0) {
+        try {
+          const { getSupabaseBrowserClient } = await import('@/lib/supabase/client');
+          await getSupabaseBrowserClient().storage
+            .from('product-images')
+            .remove(result.storagePaths);
+        } catch (storageErr) {
+          console.warn('[delete] storage cleanup partial failure:', storageErr);
+        }
+      }
+      setDeleteId(null);
+      setDeleteAction(null);
+      setDeleteConfirmText('');
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar producto.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleArchive() {
+    if (!deleteId) return;
+    setSaving(true);
+    try {
+      await productRepo.archive(deleteId);
+      setDeleteId(null);
+      setDeleteAction(null);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al archivar producto.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleRestore(id: string) {
+    setSaving(true);
+    try {
+      await productRepo.restore(id);
+      await load();
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al restaurar producto.');
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -448,6 +520,17 @@ export default function ProductosPage() {
           <span className="text-yellow-500 text-xs">★</span>
           Destacados ({featuredCount}/{MAX_FEATURED})
         </label>
+
+        <label className={`flex items-center gap-2 cursor-pointer border rounded-2xl px-3 py-2.5 text-sm transition-colors ${filterArchived ? 'bg-amber-50 border-amber-300 text-amber-700' : 'bg-white border-rose/30 text-brown hover:border-rose'}`}>
+          <input
+            type="checkbox"
+            checked={filterArchived}
+            onChange={(e) => { setFilterArchived(e.target.checked); setSearch(''); setFilterCategory(''); }}
+            className="accent-amber-500"
+          />
+          <Trash2 size={13} className="text-amber-500" />
+          Archivados
+        </label>
       </div>
 
       {/* Table */}
@@ -495,7 +578,15 @@ export default function ProductosPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3.5 font-bold text-brown">{formatPrice(p.price)}</td>
-                    <td className="px-4 py-3.5"><StatusBadge status={p.status} /></td>
+                    <td className="px-4 py-3.5">
+                      {p.archivedAt ? (
+                        <span className="inline-flex items-center gap-1 bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full">
+                          <Trash2 size={10} /> Archivado
+                        </span>
+                      ) : (
+                        <StatusBadge status={p.status} />
+                      )}
+                    </td>
                     <td className="px-4 py-3.5">
                       <button
                         onClick={() => toggleVisible(p)}
@@ -532,13 +623,27 @@ export default function ProductosPage() {
                         >
                           {copiedSlug === p.slug ? <Check size={15} className="text-green-600" /> : <Link2 size={15} />}
                         </button>
-                        <button onClick={() => openEdit(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light hover:text-rose transition-colors" title="Editar">
-                          <Edit2 size={15} />
-                        </button>
-                        <button onClick={() => duplicate(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light hover:text-blue-pastel transition-colors" title="Duplicar">
-                          <Copy size={15} />
-                        </button>
-                        <button onClick={() => setDeleteId(p.id)} className="p-1.5 rounded-xl hover:bg-red-50 text-brown-light hover:text-red-500 transition-colors" title="Eliminar">
+                        {p.archivedAt ? (
+                          // Archived product actions
+                          <button
+                            onClick={() => handleRestore(p.id)}
+                            disabled={saving}
+                            className="p-1.5 rounded-xl hover:bg-green-50 text-brown-light hover:text-green-600 transition-colors text-xs font-semibold"
+                            title="Restaurar producto"
+                          >
+                            Restaurar
+                          </button>
+                        ) : (
+                          <>
+                            <button onClick={() => openEdit(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light hover:text-rose transition-colors" title="Editar">
+                              <Edit2 size={15} />
+                            </button>
+                            <button onClick={() => duplicate(p)} className="p-1.5 rounded-xl hover:bg-cream text-brown-light hover:text-blue-pastel transition-colors" title="Duplicar">
+                              <Copy size={15} />
+                            </button>
+                          </>
+                        )}
+                        <button onClick={() => openDeleteModal(p.id)} className="p-1.5 rounded-xl hover:bg-red-50 text-brown-light hover:text-red-500 transition-colors" title={p.archivedAt ? 'Eliminar definitivamente' : 'Eliminar / Archivar'}>
                           <Trash2 size={15} />
                         </button>
                       </div>
@@ -601,7 +706,7 @@ export default function ProductosPage() {
                     >
                       <Copy size={14} />
                     </button>
-                    <button onClick={() => setDeleteId(p.id)} aria-label="Eliminar producto"
+                    <button onClick={() => openDeleteModal(p.id)} aria-label="Eliminar producto"
                       className="p-2 rounded-xl hover:bg-red-50 text-red-400 min-h-[36px] min-w-[36px] flex items-center justify-center"
                     >
                       <Trash2 size={14} />
@@ -925,14 +1030,104 @@ export default function ProductosPage() {
         </div>
       </Modal>
 
-      {/* Delete confirm */}
-      <Modal open={!!deleteId} onClose={() => setDeleteId(null)} title="Eliminar producto" size="sm">
-        <p className="text-sm text-brown-light mb-5">Esta acción no se puede deshacer. ¿Confirmas que deseas eliminar este producto?</p>
-        <div className="flex gap-3">
-          <Button variant="ghost" onClick={() => setDeleteId(null)} fullWidth>Cancelar</Button>
-          <Button variant="danger" onClick={handleDelete} fullWidth>Eliminar</Button>
-        </div>
-      </Modal>
+      {/* Delete / Archive modal */}
+      {deleteId && (() => {
+        const prod = products.find((p) => p.id === deleteId);
+        if (!prod) return null;
+
+        function closeDelete() {
+          setDeleteId(null);
+          setDeleteAction(null);
+          setDeleteConfirmText('');
+        }
+
+        return (
+          <Modal
+            open={!!deleteId && !!deleteAction}
+            onClose={closeDelete}
+            title={
+              deleteAction === 'confirm_archive'
+                ? 'Archivar producto'
+                : deleteAction === 'confirm_delete'
+                ? 'Eliminar definitivamente'
+                : 'Eliminar producto'
+            }
+            size="sm"
+          >
+            {/* Product preview */}
+            <div className="flex items-center gap-3 bg-cream/50 rounded-2xl p-3 mb-4">
+              <ProductThumbnail product={prod} size={56} />
+              <div className="min-w-0">
+                <p className="font-bold text-brown text-sm truncate">{prod.name}</p>
+                <p className="text-xs text-brown-light font-mono">{prod.sku}</p>
+              </div>
+            </div>
+
+            {deleteAction === 'check' && (
+              <div className="space-y-4">
+                <p className="text-sm text-brown-light">Verificando historial del producto…</p>
+                <div className="flex justify-center py-2">
+                  <div className="w-6 h-6 border-2 border-brown/20 border-t-brown rounded-full animate-spin" />
+                </div>
+                <Button variant="ghost" onClick={closeDelete} fullWidth>Cancelar</Button>
+              </div>
+            )}
+
+            {deleteAction === 'confirm_archive' && (
+              <div className="space-y-4">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-sm text-amber-800">
+                  Este producto tiene información histórica y no puede eliminarse definitivamente. Puedes archivarlo para retirarlo de la tienda.
+                </div>
+                <p className="text-xs text-brown-light">
+                  Al archivar: se oculta del catálogo, home y categorías. Los pedidos, pagos e imágenes se conservan. Puedes restaurarlo después.
+                </p>
+                <div className="flex gap-3">
+                  <Button variant="ghost" onClick={closeDelete} fullWidth>Cancelar</Button>
+                  <Button
+                    onClick={handleArchive}
+                    loading={saving}
+                    fullWidth
+                    className="bg-amber-500 hover:bg-amber-600 text-white"
+                  >
+                    Archivar producto
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {deleteAction === 'confirm_delete' && (
+              <div className="space-y-4">
+                <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-sm text-red-700">
+                  Esta acción eliminará definitivamente el producto y sus datos operativos asociados. No se puede deshacer.
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-brown-light uppercase tracking-wide mb-1 block">
+                    Escribe <span className="text-red-500 font-mono">ELIMINAR</span> para confirmar
+                  </label>
+                  <input
+                    value={deleteConfirmText}
+                    onChange={(e) => setDeleteConfirmText(e.target.value)}
+                    placeholder="ELIMINAR"
+                    className="w-full px-3 py-2 border border-red-300 rounded-xl text-sm focus:outline-none focus:border-red-500"
+                  />
+                </div>
+                <div className="flex gap-3">
+                  <Button variant="ghost" onClick={closeDelete} fullWidth>Cancelar</Button>
+                  <Button
+                    variant="danger"
+                    onClick={handleConfirmDelete}
+                    loading={saving}
+                    disabled={deleteConfirmText !== 'ELIMINAR'}
+                    fullWidth
+                  >
+                    {saving ? 'Eliminando…' : 'Eliminar definitivamente'}
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Modal>
+        );
+      })()}
 
     </div>
   );

@@ -87,6 +87,43 @@ export const productRepo = {
     const { productRepository } = await import('./repositories/productRepository');
     productRepository.delete(id);
   },
+  async attemptDelete(id: string): Promise<{
+    action: 'deleted' | 'requires_archive';
+    productId: string;
+    reason: string | null;
+    storagePaths?: string[];
+  }> {
+    if (isSupabase()) {
+      const { supabaseProductRepository } = await import('./repositories/supabase/productRepository');
+      return supabaseProductRepository.attemptDelete(id);
+    }
+    // Mock: always allow delete (no order history in mock)
+    const { productRepository } = await import('./repositories/productRepository');
+    productRepository.delete(id);
+    return { action: 'deleted', productId: id, reason: null, storagePaths: [] };
+  },
+  async archive(id: string): Promise<void> {
+    if (isSupabase()) {
+      const { supabaseProductRepository } = await import('./repositories/supabase/productRepository');
+      return supabaseProductRepository.archive(id);
+    }
+    const { productRepository } = await import('./repositories/productRepository');
+    productRepository.delete(id);
+  },
+  async restore(id: string): Promise<void> {
+    if (isSupabase()) {
+      const { supabaseProductRepository } = await import('./repositories/supabase/productRepository');
+      return supabaseProductRepository.restore(id);
+    }
+  },
+  async findAllIncludingArchived(): Promise<Product[]> {
+    if (isSupabase()) {
+      const { supabaseProductRepository } = await import('./repositories/supabase/productRepository');
+      return supabaseProductRepository.findAllIncludingArchived();
+    }
+    const { productRepository } = await import('./repositories/productRepository');
+    return productRepository.findAll();
+  },
 };
 
 // ── Categories ────────────────────────────────────────────────────────────────

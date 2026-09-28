@@ -99,6 +99,17 @@ export const supabaseProductRepository = {
     const { data, error } = await getSupabaseBrowserClient()
       .from('products')
       .select(PRODUCT_SELECT)
+      .neq('status', 'archived')     // exclude archived from active admin list
+      .order('catalog_number');
+    if (error) throw error;
+    return (data ?? []).map(mapProduct);
+  },
+
+  async findAllIncludingArchived(): Promise<Product[]> {
+    const { data, error } = await getSupabaseBrowserClient()
+      .from('products')
+      .select(PRODUCT_SELECT)
+      .order('status')              // archived last
       .order('catalog_number');
     if (error) throw error;
     return (data ?? []).map(mapProduct);
@@ -238,11 +249,40 @@ export const supabaseProductRepository = {
     await syncPurchaseOptions(sb, updated.id, updated.price, updated.purchaseOptions);
   },
 
-  async delete(id: string): Promise<void> {
+  async attemptDelete(id: string): Promise<{
+    action: 'deleted' | 'requires_archive';
+    productId: string;
+    reason: string | null;
+    storagePaths?: string[];
+  }> {
+    const { data, error } = await getSupabaseBrowserClient()
+      .rpc('attempt_product_delete', { p_product_id: id });
+    if (error) throw new Error(error.message);
+    const d = data as { action: string; productId: string; reason: string | null; storagePaths: string[] | null };
+    return {
+      action:       d.action as 'deleted' | 'requires_archive',
+      productId:    d.productId,
+      reason:       d.reason,
+      storagePaths: d.storagePaths ?? [],
+    };
+  },
+
+  async archive(id: string): Promise<void> {
     const { error } = await getSupabaseBrowserClient()
-      .from('products')
-      .update({ status: 'archived' })
-      .eq('id', id);
-    if (error) throw error;
+      .rpc('archive_product', { p_product_id: id });
+    if (error) throw new Error(error.message);
+  },
+
+  async restore(id: string): Promise<void> {
+    const { error } = await getSupabaseBrowserClient()
+      .rpc('restore_product', { p_product_id: id });
+    if (error) throw new Error(error.message);
+  },
+
+  // Legacy alias — kept for mock repo compatibility; Supabase uses attemptDelete/archive
+  async delete(id: string): Promise<void> {
+    const result = await supabaseProductRepository.archive(id);
+    return result;
   },
 };
+
