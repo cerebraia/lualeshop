@@ -2,7 +2,7 @@
 
 import { getSupabaseBrowserClient } from '@/lib/supabase/client';
 import { mapProduct } from './mappers';
-import type { Product } from '@/lib/types';
+import type { Product, InventoryStatus, ProductPurchaseOption } from '@/lib/types';
 
 const PRODUCT_SELECT = `
   *,
@@ -11,6 +11,88 @@ const PRODUCT_SELECT = `
   product_images (*),
   product_categories (category_id)
 `;
+
+// Map Product.status (InventoryStatus) → manual_availability DB enum
+function toManualAvailability(status: InventoryStatus): string {
+  const m: Record<InventoryStatus, string> = {
+    available:    'available',
+    low_stock:    'low_stock',
+    out_of_stock: 'out_of_stock',
+    coming_soon:  'coming_soon',
+    consult:      'consult',
+  };
+  return m[status] ?? 'consult';
+}
+
+// Sync product_purchase_options atomically after a product update.
+// If options[] is provided: full sync (insert/update/delete).
+// If options is undefined/empty: upsert a single default option with fallbackPrice.
+async function syncPurchaseOptions(
+  sb: ReturnType<typeof getSupabaseBrowserClient>,
+  productId: string,
+  fallbackPrice: number,
+  options?: ProductPurchaseOption[]
+): Promise<void> {
+  const { data: existing } = await sb
+    .from('product_purchase_options')
+    .select('id, sort_order')
+    .eq('product_id', productId)
+    .order('sort_order');
+  const existingList: Array<{ id: string; sort_order: number }> = existing ?? [];
+
+  if (options && options.length > 0) {
+    const existingIds = new Set(existingList.map((r) => String(r.id)));
+    const updatedIds  = new Set(options.filter((o) => o.id).map((o) => o.id));
+
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i];
+      if (opt.id && existingIds.has(opt.id)) {
+        const { error } = await sb
+          .from('product_purchase_options')
+          .update({ label: opt.label, price: opt.price, sort_order: i })
+          .eq('id', opt.id);
+        if (error) throw new Error(`purchase_options update: ${error.message}`);
+      } else {
+        const { error } = await sb.from('product_purchase_options').insert({
+          product_id: productId,
+          label:      opt.label,
+          price:      opt.price,
+          sort_order: i,
+          active:     true,
+        });
+        if (error) throw new Error(`purchase_options insert: ${error.message}`);
+      }
+    }
+    // Delete options removed from the list
+    for (const ex of existingList) {
+      if (!updatedIds.has(String(ex.id))) {
+        const { error } = await sb
+          .from('product_purchase_options')
+          .delete()
+          .eq('id', ex.id);
+        if (error) throw new Error(`purchase_options delete: ${error.message}`);
+      }
+    }
+  } else {
+    // Single-price product: update first option's price or insert one
+    if (existingList.length > 0) {
+      const { error } = await sb
+        .from('product_purchase_options')
+        .update({ price: fallbackPrice })
+        .eq('id', existingList[0].id);
+      if (error) throw new Error(`purchase_options price update: ${error.message}`);
+    } else {
+      const { error } = await sb.from('product_purchase_options').insert({
+        product_id: productId,
+        label:      'Unidad',
+        price:      fallbackPrice,
+        sort_order: 0,
+        active:     true,
+      });
+      if (error) throw new Error(`purchase_options initial insert: ${error.message}`);
+    }
+  }
+}
 
 export const supabaseProductRepository = {
   async findAll(): Promise<Product[]> {
@@ -108,8 +190,10 @@ export const supabaseProductRepository = {
   },
 
   async create(product: Product): Promise<void> {
-    const supabase = getSupabaseBrowserClient();
-    const { error } = await supabase.from('products').insert({
+    const sb = getSupabaseBrowserClient();
+
+    // Insert the product row
+    const { error } = await sb.from('products').insert({
       id:                   product.id,
       sku:                  product.sku,
       slug:                 product.slug,
@@ -117,7 +201,7 @@ export const supabaseProductRepository = {
       garment_type:         product.garmentType,
       description:          product.description,
       status:               product.visible ? 'active' : 'draft',
-      manual_availability:  'consult',
+      manual_availability:  toManualAvailability(product.status),
       featured:             product.featured,
       is_new:               product.isNew,
       inventory_configured: product.inventoryConfigured,
@@ -126,31 +210,38 @@ export const supabaseProductRepository = {
       size_note:            product.sizeNote,
     });
     if (error) throw error;
+
+    // Insert the initial purchase option (price)
+    await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions);
   },
 
   async update(updated: Product): Promise<void> {
-    const { error } = await getSupabaseBrowserClient()
-      .from('products')
-      .update({
-        name:                 updated.name,
-        garment_type:         updated.garmentType,
-        description:          updated.description,
-        status:               updated.visible ? 'active' : 'draft',
-        featured:             updated.featured,
-        featured_order:       updated.featuredOrder ?? null,
-        is_new:               updated.isNew,
-        inventory_configured: updated.inventoryConfigured,
-        tags:                 updated.tags,
-        size_note:            updated.sizeNote,
-      })
-      .eq('id', updated.id);
+    const sb = getSupabaseBrowserClient();
+
+    // 1. Update the products row — including manual_availability (BUG FIX)
+    const { error } = await sb.from('products').update({
+      name:                 updated.name,
+      garment_type:         updated.garmentType,
+      description:          updated.description,
+      status:               updated.visible ? 'active' : 'draft',
+      manual_availability:  toManualAvailability(updated.status),   // ← was missing
+      featured:             updated.featured,
+      featured_order:       updated.featuredOrder ?? null,
+      is_new:               updated.isNew,
+      inventory_configured: updated.inventoryConfigured,
+      tags:                 updated.tags,
+      size_note:            updated.sizeNote,
+    }).eq('id', updated.id);
     if (error) throw error;
+
+    // 2. Sync purchase options — price now persists (BUG FIX)
+    await syncPurchaseOptions(sb, updated.id, updated.price, updated.purchaseOptions);
   },
 
   async delete(id: string): Promise<void> {
     const { error } = await getSupabaseBrowserClient()
       .from('products')
-      .update({ status: 'archived' })  // soft delete
+      .update({ status: 'archived' })
       .eq('id', id);
     if (error) throw error;
   },

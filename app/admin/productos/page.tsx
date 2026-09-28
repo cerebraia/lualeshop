@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings, ExternalLink, Link2, Check } from 'lucide-react';
 import { productRepo, categoryRepo } from '@/lib/repos';
-import type { Product, Category, ProductVariant, InventoryStatus } from '@/lib/types';
+import type { Product, Category, ProductVariant, ProductPurchaseOption, InventoryStatus } from '@/lib/types';
 import { formatPrice, generateId, slugify } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Textarea, Select } from '@/components/ui/Input';
@@ -15,10 +15,11 @@ import { ProductImageManager } from '@/components/admin/ProductImageManager';
 import type { ManagedImage } from '@/components/admin/ProductImageManager';
 
 const STATUS_OPTIONS = [
-  { value: 'available', label: 'Disponible' },
-  { value: 'low_stock', label: 'Últimas unidades' },
+  { value: 'consult',      label: 'Consultar disponibilidad' },
+  { value: 'available',    label: 'Disponible' },
   { value: 'out_of_stock', label: 'Agotado' },
-  { value: 'coming_soon', label: 'Próximamente' },
+  { value: 'low_stock',    label: 'Últimas unidades' },
+  { value: 'coming_soon',  label: 'Próximamente' },
 ];
 
 const GARMENT_TYPES = [
@@ -44,6 +45,7 @@ interface ProductFormData {
   garmentType: string;
   variants: ProductVariant[];
   inventoryConfigured: boolean;
+  purchaseOptions: Array<{ id: string; label: string; price: string }>;
 }
 
 const emptyForm = (): ProductFormData => ({
@@ -53,7 +55,7 @@ const emptyForm = (): ProductFormData => ({
   price: '',
   cost: '',
   categoryIds: [],
-  status: 'available',
+  status: 'consult',
   featured: false,
   featuredOrder: '',
   isNew: false,
@@ -61,6 +63,7 @@ const emptyForm = (): ProductFormData => ({
   garmentType: 'Set',
   variants: [{ id: generateId('var'), size: '', color: '', stock: 0 }],
   inventoryConfigured: false,
+  purchaseOptions: [],
 });
 
 // ── Product thumbnail ─────────────────────────────────────────────────────────
@@ -180,6 +183,12 @@ export default function ProductosPage() {
   }
 
   function openEdit(product: Product) {
+    // purchaseOptions: use real DB options if available, else synthesize from price
+    const opts: Array<{ id: string; label: string; price: string }> =
+      product.purchaseOptions && product.purchaseOptions.length > 0
+        ? product.purchaseOptions.map((o) => ({ id: o.id, label: o.label, price: String(o.price) }))
+        : [{ id: '', label: 'Unidad', price: String(product.price) }];
+
     setForm({
       name: product.name,
       sku: product.sku,
@@ -195,6 +204,7 @@ export default function ProductosPage() {
       garmentType: product.garmentType,
       variants: product.variants,
       inventoryConfigured: product.inventoryConfigured,
+      purchaseOptions: opts,
     });
     setErrors({});
     setEditingId(product.id);
@@ -233,9 +243,17 @@ export default function ProductosPage() {
     const errs: typeof errors = {};
     if (!form.name.trim()) errs.name = 'Requerido';
     if (!form.sku.trim()) errs.sku = 'Requerido';
-    if (!form.price || isNaN(Number(form.price))) errs.price = 'Precio inválido';
     if (!form.cost || isNaN(Number(form.cost))) errs.cost = 'Costo inválido';
-    if (form.variants.length === 0) errs.variants = 'Agrega al menos una variante';
+    // Price validation: either via options or single price field
+    if (form.purchaseOptions.length > 0) {
+      const invalid = form.purchaseOptions.some(
+        (o) => !o.label.trim() || !o.price || isNaN(Number(o.price)) || Number(o.price) <= 0
+      );
+      if (invalid) errs.price = 'Todas las opciones deben tener nombre y precio mayor a cero';
+    } else {
+      if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0)
+        errs.price = 'Precio inválido (debe ser mayor que cero)';
+    }
     setErrors(errs);
     return Object.keys(errs).length === 0;
   }
@@ -250,6 +268,21 @@ export default function ProductosPage() {
         ? Number(form.featuredOrder)
         : null;
 
+      // Validate purchase options: must have label and price > 0
+      const validatedOpts: ProductPurchaseOption[] | undefined = form.purchaseOptions.length > 0
+        ? form.purchaseOptions.map((o, i) => ({
+            id:        o.id || generateId('opt'),
+            label:     o.label.trim(),
+            price:     Number(o.price),
+            sortOrder: i,
+          }))
+        : undefined;
+
+      // Derived price = first option's price (for mapper compatibility)
+      const derivedPrice = validatedOpts
+        ? Math.min(...validatedOpts.map((o) => o.price))
+        : Number(form.price);
+
       if (modal === 'create') {
         const prod: Product = {
           id: generateId('prod'),
@@ -257,7 +290,7 @@ export default function ProductosPage() {
           slug: slugify(form.name.trim()),
           sku: form.sku.trim(),
           description: form.description.trim(),
-          price: Number(form.price),
+          price: derivedPrice,
           cost: Number(form.cost),
           categoryIds: form.categoryIds,
           variants: form.variants,
@@ -270,6 +303,7 @@ export default function ProductosPage() {
           garmentType: form.garmentType,
           tags: [],
           inventoryConfigured: form.inventoryConfigured,
+          purchaseOptions: validatedOpts,
           createdAt: now,
           updatedAt: now,
         };
@@ -282,7 +316,7 @@ export default function ProductosPage() {
             name: form.name.trim(),
             sku: form.sku.trim(),
             description: form.description.trim(),
-            price: Number(form.price),
+            price: derivedPrice,
             cost: Number(form.cost),
             categoryIds: form.categoryIds,
             variants: form.variants,
@@ -293,14 +327,15 @@ export default function ProductosPage() {
             visible: form.visible,
             garmentType: form.garmentType,
             inventoryConfigured: form.inventoryConfigured,
+            purchaseOptions: validatedOpts,
             updatedAt: now,
           });
         }
       }
       await load();
       setModal(null);
-    } catch {
-      setError('Error al guardar.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar el producto.');
     } finally {
       setSaving(false);
     }
@@ -620,8 +655,74 @@ export default function ProductosPage() {
             <Input label="SKU *" value={form.sku} onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))} error={errors.sku} />
           </div>
           <Textarea label="Descripción" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
+
+          {/* ── Opciones de compra / Precio ────────────────────────── */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold text-brown">Opciones de compra *</p>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({
+                  ...f,
+                  purchaseOptions: [...f.purchaseOptions, { id: '', label: '', price: '' }],
+                }))}
+                className="text-xs text-rose font-semibold hover:underline flex items-center gap-1"
+              >
+                <Plus size={12} /> Agregar opción
+              </button>
+            </div>
+            {form.purchaseOptions.map((opt, i) => (
+              <div key={i} className="flex gap-2 items-start">
+                <div className="flex-1">
+                  <input
+                    value={opt.label}
+                    onChange={(e) => setForm((f) => ({
+                      ...f,
+                      purchaseOptions: f.purchaseOptions.map((o, j) => j === i ? { ...o, label: e.target.value } : o),
+                    }))}
+                    placeholder="Nombre (ej: Unidad, Pack x5…)"
+                    className="w-full px-3 py-2 border border-rose/20 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
+                  />
+                </div>
+                <div className="w-28">
+                  <input
+                    type="number"
+                    min="0.01"
+                    step="0.01"
+                    value={opt.price}
+                    onChange={(e) => setForm((f) => ({
+                      ...f,
+                      purchaseOptions: f.purchaseOptions.map((o, j) => j === i ? { ...o, price: e.target.value } : o),
+                      price: i === 0 ? e.target.value : f.price,
+                    }))}
+                    placeholder="0,00"
+                    className="w-full px-3 py-2 border border-rose/20 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({
+                    ...f,
+                    purchaseOptions: f.purchaseOptions.filter((_, j) => j !== i),
+                  }))}
+                  className="p-2 rounded-xl hover:bg-red-50 text-red-400 shrink-0"
+                  aria-label="Eliminar opción"
+                  disabled={form.purchaseOptions.length === 1}
+                >
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            ))}
+            {errors.price && <p className="text-xs text-red-500">{errors.price}</p>}
+            <p className="text-xs text-brown-light">
+              {form.purchaseOptions.length > 1
+                ? `Desde ${form.purchaseOptions.filter(o => o.price).length > 0 ? Math.min(...form.purchaseOptions.map(o => Number(o.price) || Infinity)).toFixed(2) : '—'} € · ${form.purchaseOptions.length} opciones`
+                : 'Un solo precio'}
+            </p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
-            <Input label="Precio (€) *" type="number" min="0" step="0.01" value={form.price} onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))} error={errors.price} />
+            <div />
             <Input label="Costo (€) *" type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))} error={errors.cost} />
           </div>
           <div className="grid grid-cols-2 gap-4">

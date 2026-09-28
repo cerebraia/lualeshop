@@ -1,4 +1,4 @@
-export type InventoryStatus = 'available' | 'low_stock' | 'out_of_stock' | 'coming_soon';
+export type InventoryStatus = 'available' | 'low_stock' | 'out_of_stock' | 'coming_soon' | 'consult';
 export type OrderStatus = 'new' | 'confirmed' | 'prepared' | 'shipped' | 'delivered' | 'cancelled';
 export type PaymentStatus = 'pending' | 'partial' | 'paid';
 export type MovementType = 'entry' | 'exit' | 'adjustment';
@@ -99,8 +99,9 @@ export interface ProductPurchaseOption {
   id: string;
   label: string;
   price: number;
-  unitDescription?: string; // e.g. "c/u", "set de 5", "par"
-  quantityIncluded?: number; // e.g. 5 for "cinco pares"
+  sortOrder?: number;
+  unitDescription?: string;
+  quantityIncluded?: number;
 }
 
 export interface ProductImageRecord {

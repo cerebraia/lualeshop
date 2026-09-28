@@ -99,7 +99,7 @@ export function mapProduct(row: DbRow): Product {
     createdAt:            row.created_at,
     updatedAt:            row.updated_at,
     catalogNumber:        row.catalog_number ?? undefined,
-    purchaseOptions:      purchaseOptions.length > 1 ? purchaseOptions : undefined,
+    purchaseOptions:      purchaseOptions.length > 0 ? purchaseOptions : undefined,
     inventoryConfigured:  row.inventory_configured,
     lowStockThreshold:    row.low_stock_threshold ?? undefined,
     sizeNote:             row.size_note ?? undefined,
@@ -118,9 +118,10 @@ export function mapVariant(row: DbRow): ProductVariant {
 
 export function mapPurchaseOption(row: DbRow): ProductPurchaseOption {
   return {
-    id:                row.id,
-    label:             row.label,
+    id:                String(row.id),
+    label:             String(row.label),
     price:             Number(row.price),
+    sortOrder:         Number(row.sort_order ?? 0),
     unitDescription:   row.unit_description ?? undefined,
     quantityIncluded:  row.quantity_included ?? undefined,
   };
@@ -128,14 +129,14 @@ export function mapPurchaseOption(row: DbRow): ProductPurchaseOption {
 
 function mapAvailability(val: string): Product['status'] {
   const map: Record<string, Product['status']> = {
-    automatic:    'available',
+    automatic:    'consult',       // legacy: treat same as consult
     available:    'available',
     low_stock:    'low_stock',
     out_of_stock: 'out_of_stock',
     coming_soon:  'coming_soon',
-    consult:      'available',
+    consult:      'consult',       // "Consultar disponibilidad" — distinct from available
   };
-  return map[val] ?? 'available';
+  return map[val] ?? 'consult';
 }
 
 // ── Customers ─────────────────────────────────────────────────

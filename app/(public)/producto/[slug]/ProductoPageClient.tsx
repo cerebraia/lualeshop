@@ -152,10 +152,10 @@ export function ProductoPageClient({ product, categories, relatedProducts }: Pro
       url: productUrl,
       priceCurrency: 'EUR',
       price: displayPrice.toFixed(2),
-      ...(product.inventoryConfigured
+      ...(product.status !== 'consult'
         ? {
             availability:
-              product.status === 'available'
+              product.status === 'available' || product.status === 'low_stock'
                 ? 'https://schema.org/InStock'
                 : 'https://schema.org/OutOfStock',
           }
@@ -249,13 +249,13 @@ export function ProductoPageClient({ product, categories, relatedProducts }: Pro
                 ) : (
                   <span className="text-3xl font-bold text-brown">{formatPrice(displayPrice)}</span>
                 )}
-                {product.inventoryConfigured ? (
-                  <StatusBadge status={product.status} />
-                ) : (
+                {product.status === 'consult' ? (
                   <span className="inline-flex items-center gap-1 text-xs font-semibold bg-blue-50 text-blue-600 px-2.5 py-1 rounded-full">
                     <Info size={11} />
                     Consultar disponibilidad
                   </span>
+                ) : (
+                  <StatusBadge status={product.status} />
                 )}
               </div>
             </div>
@@ -380,18 +380,39 @@ export function ProductoPageClient({ product, categories, relatedProducts }: Pro
               </div>
             )}
 
-            <button
-              onClick={handleWhatsApp}
-              aria-label={`Pedir ${product.name} por WhatsApp`}
-              className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-6 py-4 rounded-2xl transition-all shadow-sm text-base active:scale-[0.98]"
-            >
-              <WhatsAppIcon size={22} />
-              Pedir por WhatsApp
-            </button>
-
-            <p className="text-xs text-brown-light text-center">
-              Te redirigiremos a WhatsApp para coordinar tu pedido
-            </p>
+            {product.status === 'out_of_stock' ? (
+              <>
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 rounded-2xl px-4 py-3 text-sm text-red-700">
+                  <AlertCircle size={16} className="shrink-0" />
+                  Este producto está agotado actualmente.
+                </div>
+                <button
+                  onClick={() => {
+                    const msg = `Hola Luale 👋 Me gustaría saber cuándo estará disponible nuevamente: ${product.name} (${product.sku}). ¿Pueden avisarme cuando reponga stock?`;
+                    window.open(buildWhatsAppLink(WHATSAPP_NUMBER, msg), '_blank', 'noopener,noreferrer');
+                  }}
+                  aria-label={`Consultar reposición de ${product.name} por WhatsApp`}
+                  className="flex items-center justify-center gap-2 bg-brown/10 hover:bg-brown/20 text-brown font-bold px-6 py-4 rounded-2xl transition-all text-base active:scale-[0.98]"
+                >
+                  <WhatsAppIcon size={22} />
+                  Consultar reposición por WhatsApp
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={handleWhatsApp}
+                  aria-label={`Pedir ${product.name} por WhatsApp`}
+                  className="flex items-center justify-center gap-2 bg-[#25D366] hover:bg-[#1ebe5d] text-white font-bold px-6 py-4 rounded-2xl transition-all shadow-sm text-base active:scale-[0.98]"
+                >
+                  <WhatsAppIcon size={22} />
+                  Pedir por WhatsApp
+                </button>
+                <p className="text-xs text-brown-light text-center">
+                  Te redirigiremos a WhatsApp para coordinar tu pedido
+                </p>
+              </>
+            )}
 
             <div className="bg-cream rounded-2xl p-4 space-y-3">
               <div className="flex items-start gap-3">

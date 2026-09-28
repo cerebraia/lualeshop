@@ -41,10 +41,18 @@ export function Badge({ children, variant = 'neutral', className }: BadgeProps) 
 
 export function StatusBadge({ status }: { status: string }) {
   const map: Record<string, BadgeProps['variant']> = {
-    available: 'available',
-    low_stock: 'low_stock',
+    available:    'available',
+    low_stock:    'low_stock',
     out_of_stock: 'out_of_stock',
-    coming_soon: 'coming_soon',
+    coming_soon:  'coming_soon',
+    consult:      'info',
   };
-  return <Badge variant={map[status] ?? 'neutral'}>{status}</Badge>;
+  const labelMap: Record<string, string> = {
+    available:    'Disponible',
+    low_stock:    'Últimas unidades',
+    out_of_stock: 'Agotado',
+    coming_soon:  'Próximamente',
+    consult:      'Consultar',
+  };
+  return <Badge variant={map[status] ?? 'neutral'}>{labelMap[status] ?? status}</Badge>;
 }

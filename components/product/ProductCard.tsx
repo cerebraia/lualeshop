@@ -15,7 +15,8 @@ interface ProductCardProps {
 
 export function ProductCard({ product, index = 0 }: ProductCardProps) {
   const isMultiPrice = !!(product.purchaseOptions && product.purchaseOptions.length > 1);
-  const showRealStatus = product.inventoryConfigured;
+  const isConsult = product.status === 'consult';
+  const showStatusBadge = !isConsult && product.status !== 'available';
 
   return (
     <motion.div
@@ -46,10 +47,12 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             {product.featured && <Badge variant="featured">Destacado</Badge>}
           </div>
 
-          {showRealStatus && product.status !== 'available' && (
+          {showStatusBadge && (
             <div className="absolute top-3 right-3 z-10">
               <Badge variant={product.status as 'low_stock' | 'out_of_stock' | 'coming_soon'}>
-                {product.status === 'low_stock' ? 'Últimas' : product.status === 'out_of_stock' ? 'Agotado' : 'Pronto'}
+                {product.status === 'low_stock'    ? 'Últimas'
+                  : product.status === 'out_of_stock' ? 'Agotado'
+                  : 'Pronto'}
               </Badge>
             </div>
           )}
@@ -78,7 +81,7 @@ export function ProductCard({ product, index = 0 }: ProductCardProps) {
             </span>
           </div>
 
-          {!showRealStatus ? (
+          {isConsult ? (
             <p className="text-xs text-brown-light/60 mt-2">Consultar disponibilidad</p>
           ) : product.status === 'available' ? (
             <p className="text-xs text-green-600 font-medium mt-2">Disponible</p>
