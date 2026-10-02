@@ -24,12 +24,19 @@ export const supabaseInventoryRepository = {
     return (data ?? []).map((row: Record<string, unknown>) => mapInventoryMovement({ ...row, variant: row['product_variants'] }));
   },
 
-  async createMovement(_movement: InventoryMovement): Promise<void> {
-    // Movements are created via RPC (adjust_inventory), never directly
-    throw new Error(
-      'Use the adjust_inventory RPC instead of creating movements directly. ' +
-        'Call: supabase.rpc("adjust_inventory", { p_variant_id, p_delta, p_reason })'
-    );
+  /** Adjust inventory via the transactional RPC (records movement + updates levels). */
+  async createMovement(movement: InventoryMovement): Promise<void> {
+    const delta =
+      movement.type === 'exit'
+        ? -Math.abs(movement.quantity)
+        : Math.abs(movement.quantity);
+
+    const { error } = await getSupabaseBrowserClient().rpc('adjust_inventory', {
+      p_variant_id: movement.variantId,
+      p_delta:      delta,
+      p_reason:     movement.reason ?? 'Ajuste manual',
+    });
+    if (error) throw new Error(`adjust_inventory: ${error.message}`);
   },
 
   async findAllEntries(): Promise<MerchandiseEntry[]> {
@@ -45,19 +52,19 @@ export const supabaseInventoryRepository = {
     return (data ?? []).map(mapMerchandiseEntry);
   },
 
-  async createEntry(entry: MerchandiseEntry): Promise<void> {
+  async createEntry(entry: MerchandiseEntry): Promise<string> {
     const supabase = getSupabaseBrowserClient();
+    // Don't pass id — let Supabase generate UUID via DEFAULT gen_random_uuid()
     const { data, error } = await supabase.from('merchandise_entries').insert({
-      id:               entry.id,
       reference:        entry.reference,
       entry_date:       entry.date,
       additional_costs: entry.additionalCosts,
-      notes:            entry.notes,
+      notes:            entry.notes ?? null,
       status:           'draft',
     }).select('id').single();
-    if (error) throw error;
+    if (error) throw new Error(`merchandise_entries insert: ${error.message}`);
 
-    // Insert items
+    // Insert items referencing the Supabase-generated ID
     if (entry.items.length > 0) {
       const { error: itemErr } = await supabase.from('merchandise_entry_items').insert(
         entry.items.map((it) => ({
@@ -67,7 +74,16 @@ export const supabaseInventoryRepository = {
           unit_cost:            it.unitCost,
         }))
       );
-      if (itemErr) throw itemErr;
+      if (itemErr) throw new Error(`merchandise_entry_items insert: ${itemErr.message}`);
     }
+
+    return data.id;
+  },
+
+  /** Confirm a merchandise entry: atomically adjusts inventory via RPC. */
+  async confirmEntry(entryId: string): Promise<void> {
+    const { error } = await getSupabaseBrowserClient()
+      .rpc('confirm_merchandise_entry', { p_entry_id: entryId });
+    if (error) throw new Error(`confirm_merchandise_entry: ${error.message}`);
   },
 };

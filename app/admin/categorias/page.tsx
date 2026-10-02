@@ -29,8 +29,8 @@ export default function CategoriasPage() {
   async function load() {
     try {
       setCategories(await categoryRepo.findAll());
-    } catch {
-      setError('Error al cargar datos.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al cargar datos.');
     }
   }
 
@@ -86,8 +86,8 @@ export default function CategoriasPage() {
       }
       await load();
       setModal(null);
-    } catch {
-      setError('Error al guardar.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar.');
     } finally {
       setSaving(false);
     }
@@ -97,8 +97,8 @@ export default function CategoriasPage() {
     try {
       await categoryRepo.update({ ...cat, active: !cat.active });
       await load();
-    } catch {
-      setError('Error al actualizar categoría.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al actualizar categoría.');
     }
   }
 
@@ -108,8 +108,8 @@ export default function CategoriasPage() {
       await categoryRepo.delete(deleteId);
       setDeleteId(null);
       await load();
-    } catch {
-      setError('Error al eliminar categoría.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar categoría.');
     }
   }
 

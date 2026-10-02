@@ -2,7 +2,13 @@ export function cn(...classes: (string | undefined | null | false)[]): string {
   return classes.filter(Boolean).join(' ');
 }
 
-export function generateId(prefix = 'id'): string {
+/** Generates a real UUID v4. Safe in browser (Web Crypto API) and Node.js 14.17+. */
+export function generateId(_prefix?: string): string {
+  return crypto.randomUUID();
+}
+
+/** Generates a short non-UUID key for React element keys only (never use as a DB id). */
+export function generateKey(prefix = 'k'): string {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 

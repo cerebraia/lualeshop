@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Trash2 } from 'lucide-react';
 import { inventoryRepo, productRepo } from '@/lib/repos';
 import type { MerchandiseEntry, MerchandiseEntryItem, Product } from '@/lib/types';
-import { formatPrice, formatDate, generateId } from '@/lib/utils';
+import { formatPrice, formatDate, generateId, generateKey } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -31,8 +31,8 @@ export default function MercanciaPage() {
       ]);
       setEntries(ents);
       setProducts(prods);
-    } catch {
-      setError('Error al cargar datos.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al cargar datos.');
     }
   }
 
@@ -44,12 +44,12 @@ export default function MercanciaPage() {
     setSupplier('');
     setAdditionalCosts('0');
     setNotes('');
-    setItems([{ tempId: generateId('item'), productId: '', variantId: '', quantity: 1, unitCost: 0 }]);
+    setItems([{ tempId: generateKey('item'), productId: '', variantId: '', quantity: 1, unitCost: 0 }]);
     setModal(true);
   }
 
   function addItem() {
-    setItems((prev) => [...prev, { tempId: generateId('item'), productId: '', variantId: '', quantity: 1, unitCost: 0 }]);
+    setItems((prev) => [...prev, { tempId: generateKey('item'), productId: '', variantId: '', quantity: 1, unitCost: 0 }]);
   }
 
   function removeItem(tempId: string) {
@@ -84,42 +84,14 @@ export default function MercanciaPage() {
     };
 
     try {
-      await inventoryRepo.createEntry(entry);
-
-      await Promise.all(items.map(async (item) => {
-        const product = await productRepo.findById(item.productId);
-        if (!product) return;
-        const variant = product.variants.find((v) => v.id === item.variantId);
-        if (!variant) return;
-        const newStock = variant.stock + item.quantity;
-        const newStatus: Product['status'] =
-          newStock === 0 ? 'out_of_stock' : newStock <= 2 ? 'low_stock' : 'available';
-        await productRepo.update({
-          ...product,
-          variants: product.variants.map((v) =>
-            v.id === item.variantId ? { ...v, stock: newStock } : v
-          ),
-          status: newStatus,
-          cost: item.unitCost || product.cost,
-        });
-
-        await inventoryRepo.createMovement({
-          id: generateId('mov'),
-          productId: item.productId,
-          variantId: item.variantId,
-          type: 'entry',
-          quantity: item.quantity,
-          reason: `Entrada de mercancía — ${reference}`,
-          reference,
-          date,
-          createdAt: new Date().toISOString(),
-        });
-      }));
-
+      // Create entry draft + items, get the Supabase-generated UUID
+      const entryId = await inventoryRepo.createEntry(entry);
+      // Confirm atomically: RPC adjusts inventory levels + creates movements
+      await inventoryRepo.confirmEntry(entryId);
       await load();
       setModal(false);
-    } catch {
-      setError('Error al guardar entrada.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar entrada.');
     } finally {
       setSaving(false);
     }

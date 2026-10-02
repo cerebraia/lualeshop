@@ -378,13 +378,21 @@ export const inventoryRepo = {
     const { inventoryRepository } = await import('./repositories/inventoryRepository');
     return inventoryRepository.findAllEntries();
   },
-  async createEntry(entry: MerchandiseEntry): Promise<void> {
+  async createEntry(entry: MerchandiseEntry): Promise<string> {
     if (isSupabase()) {
       const { supabaseInventoryRepository } = await import('./repositories/supabase/inventoryRepository');
       return supabaseInventoryRepository.createEntry(entry);
     }
     const { inventoryRepository } = await import('./repositories/inventoryRepository');
     inventoryRepository.createEntry(entry);
+    return entry.id;
+  },
+  async confirmEntry(entryId: string): Promise<void> {
+    if (isSupabase()) {
+      const { supabaseInventoryRepository } = await import('./repositories/supabase/inventoryRepository');
+      return supabaseInventoryRepository.confirmEntry(entryId);
+    }
+    // Mock: no-op (mock repository manages this inline)
   },
 };
 

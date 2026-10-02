@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { Plus, Edit2, Trash2, Search } from 'lucide-react';
 import { orderRepo, customerRepo, productRepo } from '@/lib/repos';
 import type { Order, Customer, Product, OrderStatus, PaymentStatus, PaymentMethod, OrderItem } from '@/lib/types';
-import { formatPrice, formatDate, generateId } from '@/lib/utils';
+import { formatPrice, formatDate, generateId, generateKey } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Select, Textarea } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -91,8 +91,8 @@ export default function PedidosPage() {
       setOrders(ords);
       setCustomers(custs);
       setProducts(prods);
-    } catch {
-      setError('Error al cargar datos.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al cargar datos.');
     }
   }
 
@@ -112,7 +112,7 @@ export default function PedidosPage() {
     setPaymentMethod('transfer');
     setNotes('');
     setOrderDate(new Date().toISOString().split('T')[0]);
-    setItems([{ tempId: generateId('item'), productId: '', variantId: '', productName: '', variantLabel: '', quantity: 1, unitPrice: 0, totalPrice: 0 }]);
+    setItems([{ tempId: generateKey('item'), productId: '', variantId: '', productName: '', variantLabel: '', quantity: 1, unitPrice: 0, totalPrice: 0 }]);
   }
 
   function openCreate() {
@@ -129,13 +129,13 @@ export default function PedidosPage() {
     setPaymentMethod(order.paymentMethod);
     setNotes(order.notes ?? '');
     setOrderDate(order.date.split('T')[0]);
-    setItems(order.items.map((i) => ({ ...i, tempId: generateId('item') })));
+    setItems(order.items.map((i) => ({ ...i, tempId: generateKey('item') })));
     setEditingId(order.id);
     setModal('edit');
   }
 
   function addItem() {
-    setItems((prev) => [...prev, { tempId: generateId('item'), productId: '', variantId: '', productName: '', variantLabel: '', quantity: 1, unitPrice: 0, totalPrice: 0 }]);
+    setItems((prev) => [...prev, { tempId: generateKey('item'), productId: '', variantId: '', productName: '', variantLabel: '', quantity: 1, unitPrice: 0, totalPrice: 0 }]);
   }
 
   function updateItem(tempId: string, field: string, value: string | number) {
@@ -204,8 +204,8 @@ export default function PedidosPage() {
       }
       await load();
       setModal(null);
-    } catch {
-      setError('Error al guardar.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar.');
     } finally {
       setSaving(false);
     }
@@ -217,8 +217,8 @@ export default function PedidosPage() {
       await orderRepo.delete(deleteId);
       setDeleteId(null);
       await load();
-    } catch {
-      setError('Error al eliminar pedido.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar pedido.');
     }
   }
 

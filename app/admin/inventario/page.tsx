@@ -30,8 +30,8 @@ export default function InventarioPage() {
       ]);
       setProducts(prods);
       setMovements(movs);
-    } catch {
-      setError('Error al cargar datos.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al cargar datos.');
     }
   }
 
@@ -61,25 +61,8 @@ export default function InventarioPage() {
     };
 
     try {
+      // createMovement now calls the adjust_inventory RPC atomically
       await inventoryRepo.createMovement(movement);
-
-      const product = await productRepo.findById(selectedProductId);
-      if (product) {
-        const variant = product.variants.find((v) => v.id === selectedVariantId);
-        if (variant) {
-          const delta = type === 'exit' ? -Number(qty) : Number(qty);
-          const newStock = Math.max(0, variant.stock + delta);
-          const newStatus: Product['status'] =
-            newStock === 0 ? 'out_of_stock' : newStock <= 2 ? 'low_stock' : 'available';
-          await productRepo.update({
-            ...product,
-            variants: product.variants.map((v) =>
-              v.id === selectedVariantId ? { ...v, stock: newStock } : v
-            ),
-            status: newStatus,
-          });
-        }
-      }
 
       await load();
       setModal(false);
@@ -87,8 +70,8 @@ export default function InventarioPage() {
       setSelectedVariantId('');
       setQty('1');
       setReason('');
-    } catch {
-      setError('Error al registrar ajuste.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al registrar ajuste.');
     } finally {
       setSaving(false);
     }

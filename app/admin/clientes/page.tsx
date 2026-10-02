@@ -106,8 +106,8 @@ export default function ClientesPage() {
       }
       await load();
       setModal(null);
-    } catch {
-      setError('Error al guardar.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar cliente.');
     } finally {
       setSaving(false);
     }
@@ -119,8 +119,8 @@ export default function ClientesPage() {
       await customerRepo.delete(deleteId);
       setDeleteId(null);
       await load();
-    } catch {
-      setError('Error al eliminar cliente.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar cliente.');
     }
   }
 

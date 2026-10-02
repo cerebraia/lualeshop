@@ -90,8 +90,8 @@ export default function GastosPage() {
       setDescription('');
       setAmount('');
       setNotes('');
-    } catch {
-      setError('Error al guardar.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar gasto.');
     } finally {
       setSaving(false);
     }
@@ -103,8 +103,8 @@ export default function GastosPage() {
       await expenseRepo.delete(deleteId);
       setDeleteId(null);
       await load();
-    } catch {
-      setError('Error al eliminar gasto.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al eliminar gasto.');
     }
   }
 
