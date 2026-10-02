@@ -117,7 +117,7 @@ function ReceivablesTab() {
       setItems(rcvs);
       setCustomers(custs);
     }
-    catch { setError('No se pudo cargar las cuentas por cobrar.'); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'No se pudo cargar las cuentas por cobrar.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -178,7 +178,7 @@ function ReceivablesTab() {
       await receivablesRepo.setDueDate(selected.orderId, dueDate || null);
       setShowDueModal(false);
       await load();
-    } catch { setError('Error al actualizar vencimiento.'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error al actualizar vencimiento.'); }
     finally { setSaving(false); }
   }
 
@@ -189,7 +189,7 @@ function ReceivablesTab() {
       await receivablesRepo.voidPayment(showVoidModal.id, voidReason);
       setShowVoidModal(null); setVoidReason('');
       await load();
-    } catch { setError('Error al anular pago.'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error al anular pago.'); }
     finally { setSaving(false); }
   }
 
@@ -505,7 +505,7 @@ function PayablesTab() {
   const load = useCallback(async () => {
     setLoading(true); setError(null);
     try { setItems(await payablesRepo.findAll()); }
-    catch { setError('No se pudo cargar las cuentas por pagar.'); }
+    catch (e: unknown) { setError(e instanceof Error ? e.message : 'No se pudo cargar las cuentas por pagar.'); }
     finally { setLoading(false); }
   }, []);
 
@@ -581,7 +581,7 @@ function PayablesTab() {
       await payablesRepo.cancel(selected.id, cancelReason || undefined);
       setShowCancelModal(false); setCancelReason('');
       await load();
-    } catch { setError('Error al cancelar deuda.'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error al cancelar deuda.'); }
     finally { setSaving(false); }
   }
 
@@ -592,7 +592,7 @@ function PayablesTab() {
       await payablesRepo.voidPayment(showVoidModal.id, voidReason);
       setShowVoidModal(null); setVoidReason('');
       await load();
-    } catch { setError('Error al anular pago.'); }
+    } catch (e: unknown) { setError(e instanceof Error ? e.message : 'Error al anular pago.'); }
     finally { setSaving(false); }
   }
 

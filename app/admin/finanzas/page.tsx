@@ -32,8 +32,8 @@ export default function FinanzasPage() {
         setExpenses(exps);
         setReceivableSummary(rSum);
         setPayableSummary(pSum);
-      } catch {
-        setError('Error al cargar datos.');
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Error al cargar datos.');
       }
     })();
   }, []);

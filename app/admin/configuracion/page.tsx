@@ -26,8 +26,8 @@ export default function ConfiguracionPage() {
         setSettings(s);
         setProductCount(prods.length);
         setCategoryCount(cats.length);
-      } catch {
-        setError('Error al cargar datos.');
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : 'Error al cargar datos.');
       }
     })();
   }, []);
@@ -43,8 +43,8 @@ export default function ConfiguracionPage() {
     try {
       await settingsRepo.update(settings);
       setSaved(true);
-    } catch {
-      setError('Error al guardar configuración.');
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : 'Error al guardar configuración.');
     } finally {
       setSaving(false);
     }
