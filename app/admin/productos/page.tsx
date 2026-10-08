@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Image from 'next/image';
 import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings, ExternalLink, Link2, Check } from 'lucide-react';
 import { productRepo, categoryRepo } from '@/lib/repos';
+import { createProduct, updateProduct, toggleProductVisibility } from './actions';
 import type { Product, Category, ProductVariant, ProductPurchaseOption, InventoryStatus } from '@/lib/types';
 import { formatPrice, generateId, slugify, parsePriceInput } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
@@ -122,6 +123,13 @@ function ProductThumbnail({
   return <div className={base}>{inner}</div>;
 }
 
+function extractMessage(e: unknown, fallback: string): string {
+  if (e instanceof Error) return e.message;
+  if (typeof e === 'object' && e !== null && 'message' in e) return String((e as { message: unknown }).message);
+  if (typeof e === 'string') return e;
+  return fallback;
+}
+
 export default function ProductosPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -234,19 +242,19 @@ export default function ProductosPage() {
       updatedAt: now,
     };
     try {
-      await productRepo.create(newProd);
+      await createProduct(newProd);
       await load();
-    } catch {
-      setError('Error al duplicar producto.');
+    } catch (e: unknown) {
+      setError(extractMessage(e, 'Error al duplicar producto.'));
     }
   }
 
   async function toggleVisible(product: Product) {
     try {
-      await productRepo.update({ ...product, visible: !product.visible });
+      await toggleProductVisibility(product.id, !product.visible);
       await load();
-    } catch {
-      setError('Error al actualizar producto.');
+    } catch (e: unknown) {
+      setError(extractMessage(e, 'Error al actualizar producto.'));
     }
   }
 
@@ -307,58 +315,57 @@ export default function ProductosPage() {
 
       if (modal === 'create') {
         const prod: Product = {
-          id: generateId('prod'),
-          name: form.name.trim(),
-          slug: slugify(form.name.trim()),
-          sku: form.sku.trim(),
-          description: form.description.trim(),
-          price: derivedPrice,
-          cost: Number(form.cost),
-          categoryIds: form.categoryIds,
-          variants: form.variants,
-          images: [],
-          status: form.status,
-          featured: form.featured,
-          featuredOrder: featuredOrderVal,
-          isNew: form.isNew,
-          visible: form.visible,
-          garmentType: form.garmentType,
-          tags: [],
-          inventoryConfigured: form.inventoryConfigured,
-          purchaseOptions: validatedOpts,
-          createdAt: now,
-          updatedAt: now,
+          id:                   generateId('prod'),
+          name:                 form.name.trim(),
+          slug:                 slugify(form.name.trim()),
+          sku:                  form.sku.trim(),
+          description:          form.description.trim(),
+          price:                derivedPrice,
+          cost:                 Number(form.cost),
+          categoryIds:          form.categoryIds,
+          variants:             form.variants,
+          images:               [],
+          status:               form.status,
+          featured:             form.featured,
+          featuredOrder:        featuredOrderVal,
+          isNew:                form.isNew,
+          visible:              form.visible,
+          garmentType:          form.garmentType,
+          tags:                 [],
+          inventoryConfigured:  form.inventoryConfigured,
+          purchaseOptions:      validatedOpts,
+          createdAt:            now,
+          updatedAt:            now,
         };
-        await productRepo.create(prod);
+        await createProduct(prod);
       } else if (modal === 'edit' && editingId) {
-        const existing = await productRepo.findById(editingId);
-        if (existing) {
-          await productRepo.update({
-            ...existing,
-            name: form.name.trim(),
-            sku: form.sku.trim(),
-            description: form.description.trim(),
-            price: derivedPrice,
-            cost: Number(form.cost),
-            categoryIds: form.categoryIds,
-            variants: form.variants,
-            status: form.status,
-            featured: form.featured,
-            featuredOrder: featuredOrderVal,
-            isNew: form.isNew,
-            visible: form.visible,
-            garmentType: form.garmentType,
-            inventoryConfigured: form.inventoryConfigured,
-            purchaseOptions: validatedOpts,
-            updatedAt: now,
-          });
-        }
+        const existing = products.find((p) => p.id === editingId);
+        const base = existing ?? { id: editingId, images: [], createdAt: now, tags: [] } as unknown as Product;
+        await updateProduct({
+          ...base,
+          name:                form.name.trim(),
+          sku:                 form.sku.trim(),
+          description:         form.description.trim(),
+          price:               derivedPrice,
+          cost:                Number(form.cost),
+          categoryIds:         form.categoryIds,
+          variants:            form.variants,
+          status:              form.status,
+          featured:            form.featured,
+          featuredOrder:       featuredOrderVal,
+          isNew:               form.isNew,
+          visible:             form.visible,
+          garmentType:         form.garmentType,
+          inventoryConfigured: form.inventoryConfigured,
+          purchaseOptions:     validatedOpts,
+          updatedAt:           now,
+        });
       }
       await load();
       setModal(null);
       setOptionErrors([]);
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al guardar el producto.');
+      setError(extractMessage(e, 'No se pudo guardar el producto.'));
     } finally {
       setSaving(false);
     }
@@ -406,7 +413,7 @@ export default function ProductosPage() {
       setDeleteConfirmText('');
       await load();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al eliminar producto.');
+      setError(extractMessage(e, 'Error al eliminar producto.'));
     } finally {
       setSaving(false);
     }
@@ -421,7 +428,7 @@ export default function ProductosPage() {
       setDeleteAction(null);
       await load();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al archivar producto.');
+      setError(extractMessage(e, 'Error al archivar producto.'));
     } finally {
       setSaving(false);
     }
@@ -433,7 +440,7 @@ export default function ProductosPage() {
       await productRepo.restore(id);
       await load();
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Error al restaurar producto.');
+      setError(extractMessage(e, 'Error al restaurar producto.'));
     } finally {
       setSaving(false);
     }
