@@ -5,7 +5,7 @@ import Image from 'next/image';
 import { Plus, Search, Edit2, Trash2, Copy, Eye, EyeOff, ImageIcon, Settings, ExternalLink, Link2, Check } from 'lucide-react';
 import { productRepo, categoryRepo } from '@/lib/repos';
 import type { Product, Category, ProductVariant, ProductPurchaseOption, InventoryStatus } from '@/lib/types';
-import { formatPrice, generateId, slugify } from '@/lib/utils';
+import { formatPrice, generateId, slugify, parsePriceInput } from '@/lib/utils';
 import { Modal } from '@/components/ui/Modal';
 import { Input, Textarea, Select } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -63,7 +63,7 @@ const emptyForm = (): ProductFormData => ({
   garmentType: 'Set',
   variants: [{ id: generateId('var'), size: '', color: '', stock: 0 }],
   inventoryConfigured: false,
-  purchaseOptions: [],
+  purchaseOptions: [{ id: '', label: 'Unidad', price: '' }],
 });
 
 // ── Product thumbnail ─────────────────────────────────────────────────────────
@@ -252,14 +252,13 @@ export default function ProductosPage() {
     if (!form.name.trim()) errs.name = 'Requerido';
     if (!form.sku.trim()) errs.sku = 'Requerido';
     if (!form.cost || isNaN(Number(form.cost))) errs.cost = 'Costo inválido';
-    // Price validation: either via options or single price field
     if (form.purchaseOptions.length > 0) {
       const invalid = form.purchaseOptions.some(
-        (o) => !o.label.trim() || !o.price || isNaN(Number(o.price)) || Number(o.price) <= 0
+        (o) => !o.label.trim() || parsePriceInput(o.price) === null
       );
       if (invalid) errs.price = 'Todas las opciones deben tener nombre y precio mayor a cero';
     } else {
-      if (!form.price || isNaN(Number(form.price)) || Number(form.price) <= 0)
+      if (parsePriceInput(form.price) === null)
         errs.price = 'Precio inválido (debe ser mayor que cero)';
     }
     setErrors(errs);
@@ -276,20 +275,19 @@ export default function ProductosPage() {
         ? Number(form.featuredOrder)
         : null;
 
-      // Validate purchase options: must have label and price > 0
       const validatedOpts: ProductPurchaseOption[] | undefined = form.purchaseOptions.length > 0
         ? form.purchaseOptions.map((o, i) => ({
             id:        o.id || generateId('opt'),
             label:     o.label.trim(),
-            price:     Number(o.price),
+            price:     parsePriceInput(o.price) ?? 0,
             sortOrder: i,
           }))
         : undefined;
 
-      // Derived price = first option's price (for mapper compatibility)
+      // Derived price = lowest option price (for mapper/card display)
       const derivedPrice = validatedOpts
         ? Math.min(...validatedOpts.map((o) => o.price))
-        : Number(form.price);
+        : (parsePriceInput(form.price) ?? 0);
 
       if (modal === 'create') {
         const prod: Product = {
@@ -791,16 +789,15 @@ export default function ProductosPage() {
                 </div>
                 <div className="w-28">
                   <input
-                    type="number"
-                    min="0.01"
-                    step="0.01"
+                    type="text"
+                    inputMode="decimal"
                     value={opt.price}
                     onChange={(e) => setForm((f) => ({
                       ...f,
                       purchaseOptions: f.purchaseOptions.map((o, j) => j === i ? { ...o, price: e.target.value } : o),
                       price: i === 0 ? e.target.value : f.price,
                     }))}
-                    placeholder="0,00"
+                    placeholder="0.00"
                     className="w-full px-3 py-2 border border-rose/20 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
                   />
                 </div>
@@ -821,7 +818,12 @@ export default function ProductosPage() {
             {errors.price && <p className="text-xs text-red-500">{errors.price}</p>}
             <p className="text-xs text-brown-light">
               {form.purchaseOptions.length > 1
-                ? `Desde ${form.purchaseOptions.filter(o => o.price).length > 0 ? Math.min(...form.purchaseOptions.map(o => Number(o.price) || Infinity)).toFixed(2) : '—'} € · ${form.purchaseOptions.length} opciones`
+                ? (() => {
+                    const prices = form.purchaseOptions.map((o) => parsePriceInput(o.price)).filter((n): n is number => n !== null);
+                    return prices.length > 0
+                      ? `Desde ${Math.min(...prices).toFixed(2)} € · ${form.purchaseOptions.length} opciones`
+                      : `${form.purchaseOptions.length} opciones`;
+                  })()
                 : 'Un solo precio'}
             </p>
           </div>

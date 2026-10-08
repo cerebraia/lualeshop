@@ -49,3 +49,15 @@ export function formatDate(dateStr: string): string {
 export function buildWhatsAppLink(phone: string, message: string): string {
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;
 }
+
+/**
+ * Normalizes a monetary string entered by the user into a positive number.
+ * Accepts dot or comma as decimal separator: "25", "25.50", "25,50".
+ * Returns null for empty string, zero, negative values, NaN, or Infinity.
+ */
+export function parsePriceInput(raw: string): number | null {
+  const s = raw.trim().replace(',', '.');
+  const n = Number(s);
+  if (!isFinite(n) || isNaN(n) || n <= 0) return null;
+  return Math.round(n * 100) / 100;
+}
