@@ -134,6 +134,7 @@ export default function ProductosPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<ProductFormData>(emptyForm());
   const [errors, setErrors] = useState<Partial<Record<keyof ProductFormData, string>>>({});
+  const [optionErrors, setOptionErrors] = useState<string[]>([]);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [deleteAction, setDeleteAction] = useState<'check' | 'confirm_delete' | 'confirm_archive' | null>(null);
   const [deleteConfirmText, setDeleteConfirmText] = useState('');
@@ -186,6 +187,7 @@ export default function ProductosPage() {
   function openCreate() {
     setForm(emptyForm());
     setErrors({});
+    setOptionErrors([]);
     setEditingId(null);
     setModal('create');
   }
@@ -215,6 +217,7 @@ export default function ProductosPage() {
       purchaseOptions: opts,
     });
     setErrors({});
+    setOptionErrors([]);
     setEditingId(product.id);
     setModal('edit');
   }
@@ -249,20 +252,33 @@ export default function ProductosPage() {
 
   function validate(): boolean {
     const errs: typeof errors = {};
+    const optErrs: string[] = [];
+    let hasOptError = false;
+
     if (!form.name.trim()) errs.name = 'Requerido';
     if (!form.sku.trim()) errs.sku = 'Requerido';
     if (!form.cost || isNaN(Number(form.cost))) errs.cost = 'Costo inválido';
+
     if (form.purchaseOptions.length > 0) {
-      const invalid = form.purchaseOptions.some(
-        (o) => !o.label.trim() || parsePriceInput(o.price) === null
-      );
-      if (invalid) errs.price = 'Todas las opciones deben tener nombre y precio mayor a cero';
+      for (const opt of form.purchaseOptions) {
+        if (!opt.label.trim()) {
+          optErrs.push('Introduce un nombre para esta opción.');
+          hasOptError = true;
+        } else if (parsePriceInput(opt.price) === null) {
+          optErrs.push('Introduce un precio de venta mayor que cero.');
+          hasOptError = true;
+        } else {
+          optErrs.push('');
+        }
+      }
     } else {
       if (parsePriceInput(form.price) === null)
         errs.price = 'Precio inválido (debe ser mayor que cero)';
     }
+
     setErrors(errs);
-    return Object.keys(errs).length === 0;
+    setOptionErrors(optErrs);
+    return Object.keys(errs).length === 0 && !hasOptError;
   }
 
   async function handleSave() {
@@ -340,6 +356,7 @@ export default function ProductosPage() {
       }
       await load();
       setModal(null);
+      setOptionErrors([]);
     } catch (e: unknown) {
       setError(e instanceof Error ? e.message : 'Error al guardar el producto.');
     } finally {
@@ -759,10 +776,10 @@ export default function ProductosPage() {
           </div>
           <Textarea label="Descripción" value={form.description} onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))} />
 
-          {/* ── Opciones de compra / Precio ────────────────────────── */}
+          {/* ── Precio de venta (opciones de compra) ─────────────── */}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold text-brown">Opciones de compra *</p>
+              <p className="text-sm font-semibold text-brown">Precio de venta *</p>
               <button
                 type="button"
                 onClick={() => setForm((f) => ({
@@ -774,20 +791,39 @@ export default function ProductosPage() {
                 <Plus size={12} /> Agregar opción
               </button>
             </div>
+
+            {/* Column headers — visible on sm+ */}
+            <div className="hidden sm:grid sm:grid-cols-[1fr_8rem_2.25rem] sm:gap-2 px-0.5">
+              <span className="text-xs font-medium text-brown-light">Nombre de la opción</span>
+              <span className="text-xs font-medium text-brown-light">Precio de venta (€)</span>
+              <span />
+            </div>
+
             {form.purchaseOptions.map((opt, i) => (
-              <div key={i} className="flex gap-2 items-start">
-                <div className="flex-1">
+              <div key={i} className="flex flex-col gap-1.5 sm:grid sm:grid-cols-[1fr_8rem_2.25rem] sm:gap-2 sm:items-start">
+                {/* Name */}
+                <div>
+                  <label className="block text-xs font-medium text-brown-light mb-1 sm:hidden">
+                    Nombre de la opción
+                  </label>
                   <input
                     value={opt.label}
                     onChange={(e) => setForm((f) => ({
                       ...f,
                       purchaseOptions: f.purchaseOptions.map((o, j) => j === i ? { ...o, label: e.target.value } : o),
                     }))}
-                    placeholder="Nombre (ej: Unidad, Pack x5…)"
-                    className="w-full px-3 py-2 border border-rose/20 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
+                    placeholder="Ej: Unidad, Pack x5…"
+                    className={`w-full px-3 py-2 border rounded-xl text-sm text-brown focus:outline-none focus:border-rose ${optionErrors[i] === 'Introduce un nombre para esta opción.' ? 'border-red-400' : 'border-rose/20'}`}
                   />
+                  {optionErrors[i] === 'Introduce un nombre para esta opción.' && (
+                    <p className="text-xs text-red-500 mt-1">{optionErrors[i]}</p>
+                  )}
                 </div>
-                <div className="w-28">
+                {/* Price */}
+                <div>
+                  <label className="block text-xs font-medium text-brown-light mb-1 sm:hidden">
+                    Precio de venta (€) *
+                  </label>
                   <input
                     type="text"
                     inputMode="decimal"
@@ -797,17 +833,21 @@ export default function ProductosPage() {
                       purchaseOptions: f.purchaseOptions.map((o, j) => j === i ? { ...o, price: e.target.value } : o),
                       price: i === 0 ? e.target.value : f.price,
                     }))}
-                    placeholder="0.00"
-                    className="w-full px-3 py-2 border border-rose/20 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
+                    placeholder="0,00"
+                    className={`w-full px-3 py-2 border rounded-xl text-sm text-brown focus:outline-none focus:border-rose ${optionErrors[i] === 'Introduce un precio de venta mayor que cero.' ? 'border-red-400' : 'border-rose/20'}`}
                   />
+                  {optionErrors[i] === 'Introduce un precio de venta mayor que cero.' && (
+                    <p className="text-xs text-red-500 mt-1">{optionErrors[i]}</p>
+                  )}
                 </div>
+                {/* Remove */}
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({
                     ...f,
                     purchaseOptions: f.purchaseOptions.filter((_, j) => j !== i),
                   }))}
-                  className="p-2 rounded-xl hover:bg-red-50 text-red-400 shrink-0"
+                  className="self-start p-2 rounded-xl hover:bg-red-50 text-red-400 shrink-0 disabled:opacity-30"
                   aria-label="Eliminar opción"
                   disabled={form.purchaseOptions.length === 1}
                 >
@@ -815,23 +855,34 @@ export default function ProductosPage() {
                 </button>
               </div>
             ))}
-            {errors.price && <p className="text-xs text-red-500">{errors.price}</p>}
-            <p className="text-xs text-brown-light">
-              {form.purchaseOptions.length > 1
-                ? (() => {
-                    const prices = form.purchaseOptions.map((o) => parsePriceInput(o.price)).filter((n): n is number => n !== null);
-                    return prices.length > 0
-                      ? `Desde ${Math.min(...prices).toFixed(2)} € · ${form.purchaseOptions.length} opciones`
-                      : `${form.purchaseOptions.length} opciones`;
-                  })()
-                : 'Un solo precio'}
-            </p>
+
+            {/* Fallback generic error (no-options path) */}
+            {errors.price && optionErrors.length === 0 && (
+              <p className="text-xs text-red-500">{errors.price}</p>
+            )}
+
+            {form.purchaseOptions.length > 1 && (() => {
+              const prices = form.purchaseOptions.map((o) => parsePriceInput(o.price)).filter((n): n is number => n !== null);
+              return (
+                <p className="text-xs text-brown-light">
+                  {prices.length > 0
+                    ? `Desde ${Math.min(...prices).toFixed(2)} € · ${form.purchaseOptions.length} opciones`
+                    : `${form.purchaseOptions.length} opciones`}
+                </p>
+              );
+            })()}
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div />
-            <Input label="Costo (€) *" type="number" min="0" step="0.01" value={form.cost} onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))} error={errors.cost} />
-          </div>
+          {/* ── Costo interno ────────────────────────────────────── */}
+          <Input
+            label="Costo interno (€)"
+            type="number"
+            min="0"
+            step="0.01"
+            value={form.cost}
+            onChange={(e) => setForm((f) => ({ ...f, cost: e.target.value }))}
+            error={errors.cost}
+          />
           <div className="grid grid-cols-2 gap-4">
             <Select
               label="Tipo de prenda"
