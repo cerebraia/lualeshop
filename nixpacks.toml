@@ -1,0 +1,8 @@
+# Nixpacks configuration for Railway deployment.
+# Anchors Node 22, disables telemetry, and prevents stale font-module
+# errors caused by .next/ from a previous deployment surviving between
+# Railway workspace restores (cleared by the buildCommand in railway.json).
+
+[variables]
+NODE_VERSION = "22"
+NEXT_TELEMETRY_DISABLED = "1"
