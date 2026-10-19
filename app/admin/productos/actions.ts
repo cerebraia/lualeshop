@@ -16,15 +16,28 @@
 import { createClient } from '@supabase/supabase-js';
 import type { Product, ProductPurchaseOption, InventoryStatus } from '@/lib/types';
 
+// ── Logging helper (server-only, safe — no tokens, no PII) ───────────────────
+
+function log(requestId: string, stage: string, extra?: Record<string, unknown>) {
+  console.info('[PRODUCT_SAVE]', JSON.stringify({ requestId, stage, ...extra }));
+}
+
+function logError(requestId: string, stage: string, err: unknown) {
+  const e = err instanceof Error ? err : new Error(String(err));
+  // Never log the full object — only message and (if PostgrestError) code/details/hint.
+  const pg = err as { code?: string; details?: string; hint?: string };
+  console.error('[PRODUCT_SAVE_ERROR]', JSON.stringify({
+    requestId,
+    stage,
+    message: e.message,
+    ...(pg.code    ? { code:    pg.code    } : {}),
+    ...(pg.details ? { details: pg.details } : {}),
+    ...(pg.hint    ? { hint:    pg.hint    } : {}),
+  }));
+}
+
 // ── Auth guard ────────────────────────────────────────────────────────────────
 
-/**
- * Validates the incoming request's session and confirms the caller is an
- * active admin or owner. Throws a user-readable error if not.
- *
- * Uses getUser() — not getSession() — so the JWT is verified with the auth
- * server rather than trusted from the local cookie.
- */
 async function requireActiveAdmin(): Promise<void> {
   const { getSupabaseServerClient } = await import('@/lib/supabase/server');
   const supabase = await getSupabaseServerClient();
@@ -77,10 +90,6 @@ function toManualAvailability(status: InventoryStatus): string {
   return m[status] ?? 'consult';
 }
 
-/**
- * Validates featured_order strictly: must be an integer 1–16 or null.
- * Throws a user-visible error for invalid values — no silent clamping.
- */
 function validateFeaturedOrder(value: number | null | undefined): number | null {
   if (value == null) return null;
   if (!Number.isInteger(value) || value < 1 || value > 16) {
@@ -97,7 +106,8 @@ async function syncPurchaseOptions(
   sb: Sb,
   productId: string,
   fallbackPrice: number,
-  options?: ProductPurchaseOption[]
+  options: ProductPurchaseOption[] | undefined,
+  requestId: string,
 ): Promise<void> {
   const { data: existing, error: fetchErr } = await sb
     .from('product_purchase_options')
@@ -106,6 +116,12 @@ async function syncPurchaseOptions(
     .order('sort_order');
   if (fetchErr) throw new Error(`purchase_option fetch: ${fetchErr.message} (${fetchErr.code})`);
   const existingList: Array<{ id: string }> = existing ?? [];
+
+  log(requestId, 'syncPurchaseOptions', {
+    existingCount: existingList.length,
+    incomingCount: options?.length ?? 0,
+    fallbackPrice,
+  });
 
   if (options && options.length > 0) {
     const existingIds = new Set(existingList.map((r) => String(r.id)));
@@ -164,8 +180,11 @@ async function syncPurchaseOptions(
 async function syncCategories(
   sb: Sb,
   productId: string,
-  categoryIds: string[]
+  categoryIds: string[],
+  requestId: string,
 ): Promise<void> {
+  log(requestId, 'syncCategories', { categoryCount: categoryIds.length });
+
   const { error: delError } = await sb
     .from('product_categories')
     .delete()
@@ -183,83 +202,132 @@ async function syncCategories(
 // ── Exported server actions ───────────────────────────────────────────────────
 
 export async function createProduct(product: Product): Promise<void> {
-  await requireActiveAdmin();
-  const sb = getAdminClient();
+  const requestId = crypto.randomUUID();
+  log(requestId, 'start', { action: 'createProduct', sku: product.sku });
 
-  const featuredOrder = validateFeaturedOrder(product.featuredOrder);
+  try {
+    log(requestId, 'requireActiveAdmin');
+    await requireActiveAdmin();
+    log(requestId, 'requireActiveAdmin:ok');
 
-  const { error } = await sb.from('products').insert({
-    id:                   product.id,
-    sku:                  product.sku,
-    slug:                 product.slug,
-    name:                 product.name,
-    garment_type:         product.garmentType ?? '',
-    description:          product.description ?? '',
-    status:               product.visible ? 'active' : 'draft',
-    manual_availability:  toManualAvailability(product.status),
-    featured:             product.featured,
-    featured_order:       featuredOrder,
-    is_new:               product.isNew,
-    inventory_configured: product.inventoryConfigured,
-    tags:                 product.tags ?? [],
-    catalog_number:       product.catalogNumber ?? null,
-    size_note:            product.sizeNote ?? null,
-  });
-  if (error) throw new Error(`product insert: ${error.message} (code: ${error.code})`);
+    const sb = getAdminClient();
+    log(requestId, 'getAdminClient:ok');
 
-  await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions);
-  await syncCategories(sb, product.id, product.categoryIds);
+    const featuredOrder = validateFeaturedOrder(product.featuredOrder);
 
-  const validVariants = product.variants.filter((v) => v.size.trim());
-  if (validVariants.length > 0) {
-    const { error: varError } = await sb.from('product_variants').insert(
-      validVariants.map((v) => ({
-        id:         v.id,
-        product_id: product.id,
-        size:       v.size.trim(),
-        color:      v.color?.trim() || null,
-        sku:        v.sku || null,
-        active:     true,
-      }))
-    );
-    if (varError) throw new Error(`variant insert: ${varError.message} (${varError.code})`);
+    log(requestId, 'products:insert', { id: product.id, sku: product.sku, slug: product.slug });
+    const { error } = await sb.from('products').insert({
+      id:                   product.id,
+      sku:                  product.sku,
+      slug:                 product.slug,
+      name:                 product.name,
+      garment_type:         product.garmentType ?? '',
+      description:          product.description ?? '',
+      status:               product.visible ? 'active' : 'draft',
+      manual_availability:  toManualAvailability(product.status),
+      featured:             product.featured,
+      featured_order:       featuredOrder,
+      is_new:               product.isNew,
+      inventory_configured: product.inventoryConfigured,
+      tags:                 product.tags ?? [],
+      catalog_number:       product.catalogNumber ?? null,
+      size_note:            product.sizeNote ?? null,
+    });
+    if (error) throw new Error(`product insert: ${error.message} (code: ${error.code})`);
+    log(requestId, 'products:insert:ok');
+
+    await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions, requestId);
+    log(requestId, 'syncPurchaseOptions:ok');
+
+    await syncCategories(sb, product.id, product.categoryIds, requestId);
+    log(requestId, 'syncCategories:ok');
+
+    const validVariants = product.variants.filter((v) => v.size.trim());
+    if (validVariants.length > 0) {
+      log(requestId, 'variants:insert', { count: validVariants.length });
+      const { error: varError } = await sb.from('product_variants').insert(
+        validVariants.map((v) => ({
+          id:         v.id,
+          product_id: product.id,
+          size:       v.size.trim(),
+          color:      v.color?.trim() || null,
+          sku:        v.sku || null,
+          active:     true,
+        }))
+      );
+      if (varError) throw new Error(`variant insert: ${varError.message} (${varError.code})`);
+      log(requestId, 'variants:insert:ok');
+    }
+
+    log(requestId, 'done');
+  } catch (err) {
+    logError(requestId, 'createProduct:catch', err);
+    throw err;
   }
 }
 
 export async function updateProduct(product: Product): Promise<void> {
-  await requireActiveAdmin();
-  const sb = getAdminClient();
+  const requestId = crypto.randomUUID();
+  log(requestId, 'start', { action: 'updateProduct', id: product.id, sku: product.sku });
 
-  const featuredOrder = validateFeaturedOrder(product.featuredOrder);
+  try {
+    log(requestId, 'requireActiveAdmin');
+    await requireActiveAdmin();
+    log(requestId, 'requireActiveAdmin:ok');
 
-  const { error } = await sb.from('products').update({
-    name:                 product.name,
-    garment_type:         product.garmentType ?? '',
-    description:          product.description ?? '',
-    status:               product.visible ? 'active' : 'draft',
-    manual_availability:  toManualAvailability(product.status),
-    featured:             product.featured,
-    featured_order:       featuredOrder,
-    is_new:               product.isNew,
-    inventory_configured: product.inventoryConfigured,
-    tags:                 product.tags ?? [],
-    size_note:            product.sizeNote ?? null,
-  }).eq('id', product.id);
-  if (error) throw new Error(`product update: ${error.message} (code: ${error.code})`);
+    const sb = getAdminClient();
+    log(requestId, 'getAdminClient:ok');
 
-  await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions);
-  await syncCategories(sb, product.id, product.categoryIds);
+    const featuredOrder = validateFeaturedOrder(product.featuredOrder);
+
+    log(requestId, 'products:update');
+    const { error } = await sb.from('products').update({
+      name:                 product.name,
+      garment_type:         product.garmentType ?? '',
+      description:          product.description ?? '',
+      status:               product.visible ? 'active' : 'draft',
+      manual_availability:  toManualAvailability(product.status),
+      featured:             product.featured,
+      featured_order:       featuredOrder,
+      is_new:               product.isNew,
+      inventory_configured: product.inventoryConfigured,
+      tags:                 product.tags ?? [],
+      size_note:            product.sizeNote ?? null,
+    }).eq('id', product.id);
+    if (error) throw new Error(`product update: ${error.message} (code: ${error.code})`);
+    log(requestId, 'products:update:ok');
+
+    await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions, requestId);
+    log(requestId, 'syncPurchaseOptions:ok');
+
+    await syncCategories(sb, product.id, product.categoryIds, requestId);
+    log(requestId, 'syncCategories:ok');
+
+    log(requestId, 'done');
+  } catch (err) {
+    logError(requestId, 'updateProduct:catch', err);
+    throw err;
+  }
 }
 
 export async function toggleProductVisibility(
   productId: string,
   visible: boolean
 ): Promise<void> {
-  await requireActiveAdmin();
-  const sb = getAdminClient();
-  const { error } = await sb
-    .from('products')
-    .update({ status: visible ? 'active' : 'draft' })
-    .eq('id', productId);
-  if (error) throw new Error(`visibility update: ${error.message} (${error.code})`);
+  const requestId = crypto.randomUUID();
+  log(requestId, 'start', { action: 'toggleProductVisibility', productId, visible });
+
+  try {
+    await requireActiveAdmin();
+    const sb = getAdminClient();
+    const { error } = await sb
+      .from('products')
+      .update({ status: visible ? 'active' : 'draft' })
+      .eq('id', productId);
+    if (error) throw new Error(`visibility update: ${error.message} (${error.code})`);
+    log(requestId, 'done');
+  } catch (err) {
+    logError(requestId, 'toggleProductVisibility:catch', err);
+    throw err;
+  }
 }
