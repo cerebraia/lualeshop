@@ -17,17 +17,6 @@ const PRODUCT_SELECT = `
   product_categories (category_id)
 `;
 
-// For category-filtered queries the relation must use !inner (to exclude products
-// that do not belong to the category). Cannot append to PRODUCT_SELECT because
-// that already includes product_categories — PostgREST rejects duplicate relations
-// and returns a malformed response that crashes the Server Component (React #441).
-const PRODUCT_SELECT_INNER = `
-  *,
-  product_variants (*, inventory_levels (quantity_on_hand)),
-  product_purchase_options (*),
-  product_images (*),
-  product_categories!inner (category_id)
-`;
 
 async function getSupabase() {
   const { getSupabaseServerClient } = await import('@/lib/supabase/server');

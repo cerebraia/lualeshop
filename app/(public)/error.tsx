@@ -11,12 +11,12 @@ export default function PublicError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error('[PublicError]', error.digest ?? error.message);
+    console.error('[PublicError] digest:', error.digest);
   }, [error]);
 
   return (
     <div className="min-h-[60vh] flex flex-col items-center justify-center px-4 text-center">
-      <p className="text-6xl font-extrabold text-rose-200 mb-3">!</p>
+      <p className="text-6xl font-extrabold text-rose/20 mb-3">!</p>
       <h1 className="text-xl font-extrabold text-brown mb-2">No pudimos cargar esta página</h1>
       <p className="text-brown-light text-sm max-w-xs mb-6">
         Ocurrió un error al conectar con el servidor. Por favor intenta de nuevo.
@@ -29,13 +29,13 @@ export default function PublicError({
       <div className="flex gap-3 justify-center">
         <button
           onClick={reset}
-          className="px-5 py-2.5 bg-rose text-white text-sm font-semibold rounded-2xl hover:bg-rose-dark transition-colors"
+          className="px-5 py-2.5 bg-rose hover:bg-rose-dark text-white text-sm font-semibold rounded-2xl transition-colors"
         >
           Reintentar
         </button>
         <Link
           href="/catalogo"
-          className="px-5 py-2.5 border-2 border-rose/30 text-brown text-sm font-semibold rounded-2xl hover:border-rose transition-colors"
+          className="px-5 py-2.5 border-2 border-rose/30 hover:border-rose text-brown text-sm font-semibold rounded-2xl transition-colors"
         >
           Ver catálogo
         </Link>

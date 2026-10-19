@@ -19,7 +19,9 @@ export default async function CategoriaPage({
   const category = await getCategoryBySlug(slug);
   if (!category) return notFound();
 
-  const products = await getProductsByCategory(category.id).catch(() => []);
+  // Primary content — let error.tsx handle any Supabase failure so the user
+  // sees a proper error message rather than a misleading empty catalogue.
+  const products = await getProductsByCategory(category.id);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10">
