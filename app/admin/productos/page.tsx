@@ -267,6 +267,12 @@ export default function ProductosPage() {
     if (!form.sku.trim()) errs.sku = 'Requerido';
     if (!form.cost || isNaN(Number(form.cost))) errs.cost = 'Costo inválido';
 
+    if (form.featured && form.featuredOrder.trim()) {
+      const fo = Number(form.featuredOrder);
+      if (!isFinite(fo) || fo < 1 || fo > MAX_FEATURED || !Number.isInteger(fo))
+        errs.featuredOrder = `Debe ser un número entero entre 1 y ${MAX_FEATURED}`;
+    }
+
     if (form.purchaseOptions.length > 0) {
       for (const opt of form.purchaseOptions) {
         if (!opt.label.trim()) {
@@ -993,8 +999,11 @@ export default function ProductosPage() {
                     value={form.featuredOrder}
                     onChange={(e) => setForm((f) => ({ ...f, featuredOrder: e.target.value }))}
                     placeholder="1–16"
-                    className="w-24 px-3 py-1.5 border border-rose/30 rounded-xl text-sm text-brown focus:outline-none focus:border-rose"
+                    className={`w-24 px-3 py-1.5 border rounded-xl text-sm text-brown focus:outline-none focus:border-rose ${errors.featuredOrder ? 'border-red-400' : 'border-rose/30'}`}
                   />
+                  {errors.featuredOrder && (
+                    <p className="text-xs text-red-500 mt-1">{errors.featuredOrder}</p>
+                  )}
                   <p className="text-xs text-brown-light mt-1">
                     Define la posición en el carrusel de la home. Deja vacío para aparecer al final.
                   </p>

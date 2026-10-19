@@ -124,6 +124,11 @@ async function syncCategories(
 export async function createProduct(product: Product): Promise<void> {
   const sb = getAdminClient();
 
+  // Clamp featured_order to valid range (1–16) before inserting to avoid DB constraint violation.
+  const featuredOrder = product.featuredOrder != null
+    ? Math.max(1, Math.min(16, Math.round(product.featuredOrder)))
+    : null;
+
   const { error } = await sb.from('products').insert({
     id:                   product.id,
     sku:                  product.sku,
@@ -134,14 +139,14 @@ export async function createProduct(product: Product): Promise<void> {
     status:               product.visible ? 'active' : 'draft',
     manual_availability:  toManualAvailability(product.status),
     featured:             product.featured,
-    featured_order:       product.featuredOrder ?? null,
+    featured_order:       featuredOrder,
     is_new:               product.isNew,
     inventory_configured: product.inventoryConfigured,
     tags:                 product.tags ?? [],
     catalog_number:       product.catalogNumber ?? null,
     size_note:            product.sizeNote ?? null,
   });
-  if (error) throw new Error(`product insert: ${error.message}`);
+  if (error) throw new Error(`product insert: ${error.message} (code: ${error.code})`);
 
   await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions);
   await syncCategories(sb, product.id, product.categoryIds);
@@ -166,6 +171,11 @@ export async function createProduct(product: Product): Promise<void> {
 export async function updateProduct(product: Product): Promise<void> {
   const sb = getAdminClient();
 
+  // Clamp featured_order to valid range (1–16) before updating.
+  const featuredOrder = product.featuredOrder != null
+    ? Math.max(1, Math.min(16, Math.round(product.featuredOrder)))
+    : null;
+
   const { error } = await sb.from('products').update({
     name:                 product.name,
     garment_type:         product.garmentType ?? '',
@@ -173,13 +183,13 @@ export async function updateProduct(product: Product): Promise<void> {
     status:               product.visible ? 'active' : 'draft',
     manual_availability:  toManualAvailability(product.status),
     featured:             product.featured,
-    featured_order:       product.featuredOrder ?? null,
+    featured_order:       featuredOrder,
     is_new:               product.isNew,
     inventory_configured: product.inventoryConfigured,
     tags:                 product.tags ?? [],
     size_note:            product.sizeNote ?? null,
   }).eq('id', product.id);
-  if (error) throw new Error(`product update: ${error.message}`);
+  if (error) throw new Error(`product update: ${error.message} (code: ${error.code})`);
 
   await syncPurchaseOptions(sb, product.id, product.price, product.purchaseOptions);
   await syncCategories(sb, product.id, product.categoryIds);

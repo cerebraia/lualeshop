@@ -53,7 +53,10 @@ export function mapCategory(row: DbRow): Category {
 
 export function mapProduct(row: DbRow): Product {
   const variants: ProductVariant[] = (row.product_variants ?? []).map(mapVariant);
-  const purchaseOptions: ProductPurchaseOption[] = (row.product_purchase_options ?? []).map(mapPurchaseOption);
+  const purchaseOptions: ProductPurchaseOption[] = (row.product_purchase_options ?? [])
+    .slice()
+    .sort((a: DbRow, b: DbRow) => (a.sort_order ?? 0) - (b.sort_order ?? 0))
+    .map(mapPurchaseOption);
 
   const sortedRawImages: DbRow[] = (row.product_images ?? [])
     .slice()

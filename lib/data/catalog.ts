@@ -73,8 +73,8 @@ export async function getProductBySlug(slug: string): Promise<Product | undefine
       .select(PRODUCT_SELECT)
       .eq('slug', slug)
       .eq('status', 'active')
-      .single();
-    if (error) return undefined;
+      .maybeSingle();
+    if (error || !data) return undefined;
     return mapProduct(data);
   }
   return mockProducts.find((p) => p.slug === slug && p.visible);

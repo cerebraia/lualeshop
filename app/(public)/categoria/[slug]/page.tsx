@@ -19,7 +19,7 @@ export default async function CategoriaPage({
   const category = await getCategoryBySlug(slug);
   if (!category) return notFound();
 
-  const products = await getProductsByCategory(category.id);
+  const products = await getProductsByCategory(category.id).catch(() => []);
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-10">

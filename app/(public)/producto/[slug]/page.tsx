@@ -9,13 +9,15 @@ export default async function ProductoPage({
 }) {
   const { slug } = await params;
 
-  const [product, allProducts, allCategories] = await Promise.all([
-    getProductBySlug(slug),
-    getVisibleProducts(),
-    getCategories(),
-  ]);
-
+  const product = await getProductBySlug(slug);
   if (!product) return notFound();
+
+  // Fetch supporting data; fall back to empty arrays if Supabase fails so
+  // the product page still renders instead of throwing React #441.
+  const [allProducts, allCategories] = await Promise.all([
+    getVisibleProducts().catch(() => []),
+    getCategories().catch(() => []),
+  ]);
 
   const categories = allCategories.filter((c) => product.categoryIds.includes(c.id));
 
